@@ -1,0 +1,9 @@
+pydantic
+pytest
+networkx
+
+
+
+ipykernel
+setuptools
+sphinx
