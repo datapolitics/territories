@@ -1,9 +1,8 @@
 pydantic
-pytest
 networkx
 
 
-
+pytest
 ipykernel
 setuptools
 sphinx

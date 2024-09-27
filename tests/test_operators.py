@@ -41,20 +41,22 @@ tree = nx.DiGraph([
 
 Territory.assign_tree(tree)
 
-a = Territory(entities=(sté, marseille))
-b = Territory(entities=(lyon, france))
-c = Territory(entities=(paris, nogent, pantin, lyon, lyon, metropole))
-d = Territory(entities=(lyon, villeurbane, marseille))
+a = Territory(sté, marseille)
+b = Territory(lyon, france)
+c = Territory(paris, nogent, pantin, lyon, lyon, metropole)
+d = Territory(lyon, villeurbane, marseille)
+e = Territory(rhone, idf)
+f = Territory(idf, marseille, metropole)
 
 
 def test_eqality():
-    assert b == Territory(entities=(france, ))
+    assert b == Territory(france)
 
 
 def test_addition():
-    assert d + a == Territory(entities=(sud, ))
-    assert c + a == Territory(entities=(idf, sud))
-    assert d + c == Territory(entities=(metropole, marseille, idf ))
+    assert d + a == Territory(sud)
+    assert c + a == Territory(idf, sud)
+    assert d + c == Territory(metropole, marseille, idf)
 
 
 def test_inclusion():
@@ -64,15 +66,17 @@ def test_inclusion():
 
 
 def test_union():
-    assert a | d == Territory(entities=(sud, ))
-    assert c | d == Territory(entities=(idf, marseille, metropole))
+    assert a | d == Territory(sud)
+    assert c | d == Territory(idf, marseille, metropole)
 
 
 def test_intersection():
     assert a & b == a
-    assert a & d == Territory(entities=(marseille, ))
+    assert a & d == Territory(marseille)
+    assert e & f == Territory(idf, metropole)
 
 
 def test_substraction():
     assert a - b == Territory()
-    assert b - a == Territory(entities=(metropole, idf))
+    print(b - a)
+    assert b - a == Territory(metropole, idf)

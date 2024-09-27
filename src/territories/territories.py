@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import networkx as nx
 
-from dataclasses import dataclass, field
 from typing import Iterable, Optional
+from dataclasses import dataclass
 from functools import reduce
 from itertools import chain
 from enum import Enum
+
 
 class Type(Enum):
     COMMUNE = 0
@@ -14,6 +15,7 @@ class Type(Enum):
     DEP = 2
     REGION = 4
     PAYS = 5
+
 
 @dataclass(frozen=True)
 class Entity:
@@ -39,7 +41,6 @@ class Entity:
             return None
         return reduce(lambda x, y: x | y, [other & child for child in self.entities])
     
-
 
 class Territory:
     tree: Optional[nx.DiGraph] = None
@@ -79,63 +80,59 @@ class Territory:
         return union
     
 
-    def empty(cls):
-        return 
+    @classmethod
+    def union(csl, *others):
+        return reduce(lambda x, y: x + y, iter(others))
 
 
-    def __init__(
-            self,
-            # tree: nx.DiGraph,
-            entities: Optional[Iterable[Entity]] = None
-            ) -> None:
+    @classmethod
+    def intersection(csl, *others):
+        return reduce(lambda x, y: x & y, iter(others))
+
+
+    @classmethod
+    def _sub(cls, a: Entity, b: Entity) -> set[Entity]:
+        if a == b:
+            return set()
+        if a in nx.ancestors(cls.tree, b):
+            return set.union(*(cls._sub(child, b) for child in cls.tree.successors(a)))
+        return {a}
+    
+
+    @classmethod
+    def _and(cls, a: Entity, b: Entity) -> set[Entity]:
+        if a == b:
+            return {a}
+        if a in nx.ancestors(cls.tree, b):
+            return {b}
+        return set()
+
+
+    def __init__(self, *args: Iterable[Entity]) -> None:
         if self.tree is None:
             raise Exception('Tree is not initialized')
+        entities = set(args)
         if entities:
-            entities = set(entities)
             root = next(n for n, d in self.tree.in_degree() if d==0)
             #  guarantee the Territory is always represented in minimal form
             self.entities = self.minimize(root, entities)
         else:
-            self.entities = None
-        # self.tree = tree
+            self.entities = set()
 
 
     def __eq__(self, value: Territory) -> bool:
         return self.entities == value.entities
-    
+
 
     def __add__(self, other: Territory) -> Territory:
         return Territory(
-            self.entities | other.entities
-        )
-
-
-    def __sub__(self, other: Territory | Entity) -> Territory:
-        # if self in other
-        # return {}
-
-        # if self is disjoint
-        # return self
-        # incorrect
-        if isinstance(other, Entity):
-            other = Territory((other, ))
-        if other.entities is None:
-            return self
-        for entity in other.entities:
-            if entity == self:
-                return Territory()
-            if entity in self:
-                # need to expand self here
-                return Territory(entities=(child - entity for child in self.entities))
-        return Territory(
-            self.entities - other.entities
+            *(self.entities | other.entities)
         )
     
 
     def is_contained(self, other: Territory | Entity) -> bool:
         for entity in self.entities:
             parents = nx.ancestors(self.tree, entity) | {entity}
-            # print(parents)
             if isinstance(other, Entity):
                 if other not in parents:
                     return False
@@ -147,7 +144,7 @@ class Territory:
 
     def __contains__(self, other: Territory | Entity) -> bool:
         if isinstance(other, Entity):
-            other = Territory((other, ))
+            other = Territory(other)
         return other.is_contained(self)
     
 
@@ -156,42 +153,49 @@ class Territory:
 
 
     def __or__(self, other: Territory | Entity) -> Territory:
-        if self.entities is None:
+        if not self.entities:
             entities = tuple()
         else:
             entities = self.entities
         if isinstance(other, Entity):
-            return Territory(chain(entities, [other]))
+            return Territory(*chain(entities, [other]))
         if other.entities is not None:
-            return Territory(chain(entities, other.entities))
+            return Territory(*chain(entities, other.entities))
         return self
     
 
-    def __and__(self, other: Territory) -> Territory:
-        # intersection is hard ?
-        # cases
-        # entity is contained in other -> return {entity}
-        # entity is disjoint from other -> return {}
-        # none of the above :=> return a & other for a in self.entities
-        if self.entities is None:
-            return self
+    def __and__(self, other: Territory | Entity) -> Territory:
         if isinstance(other, Entity):
-            # print("instanciate")
-            # here goes into infinite recursion 
-            other = Territory(entities={other})
-        # print(len(other.entities))
+            return Territory(*chain(*(self._and(child, other) for child in self.entities)))
+        if (not other.entities) or (not self.entities):
+            return Entity()
         if self in other:
             return self
-        if self.is_disjoint(other):
+
+        tmp  = [self & child for child in other.entities]
+        inters =  Territory.union(*tmp)
+        return inters        
+
+
+    def __sub__(self, other: Territory | Entity) -> Territory:
+        if isinstance(other, Entity):
+            return Territory(*chain(*(self._sub(child, other) for child in self.entities)))
+        if (not other.entities) or (not self.entities):
+            return self
+        if self in other:
             return Territory()
-        if len(self.entities) == 1:
-            if self.is_contained(other):
-                return self
-            else:
-                return Territory()
-        return reduce(lambda x, y: x | y, [other & child for child in self.entities])
-        # return reduce(lambda x, y: x | y, [child for child in self.entities])
+        
+        tmp  = [self - child for child in other.entities]
+        inters = Territory.intersection(*tmp)
+        print(inters)
+        return inters
 
 
     def __repr__(self) -> str:
-        return '|'.join(str(e) for e in self.entities)
+        if self.entities:
+            return '|'.join(str(e) for e in self.entities)
+        return '{}'
+
+
+    def to_es(self) -> list[str]:
+        return [e.es_code for e in self.entities]
