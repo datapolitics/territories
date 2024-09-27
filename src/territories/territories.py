@@ -30,25 +30,16 @@ class Entity:
 
     def contains(self, other, tree: nx.DiGraph) -> bool:
         return (self == other) or (self in nx.ancestors(tree, other))
-    
-        
-    def __and__(self, other, tree):
-        if other is None:
-            return None
-        if self in other:
-            return self
-        if self.is_disjoint(other):
-            return None
-        return reduce(lambda x, y: x | y, [other & child for child in self.entities])
+
     
 
 class Territory:
     tree: Optional[nx.DiGraph] = None
 
+
     @classmethod
     def assign_tree(cls, tree):
         cls.tree = tree
-
 
     @classmethod
     def minimize(cls, node: Entity, items: Iterable[Entity]) -> set[Entity]:
@@ -103,8 +94,12 @@ class Territory:
     def _and(cls, a: Entity, b: Entity) -> set[Entity]:
         if a == b:
             return {a}
+        # if a in b
         if a in nx.ancestors(cls.tree, b):
             return {b}
+        # if b in a
+        if b in nx.ancestors(cls.tree, a):
+            return {a}
         return set()
 
 
@@ -164,18 +159,17 @@ class Territory:
         return self
     
 
+
     def __and__(self, other: Territory | Entity) -> Territory:
         if isinstance(other, Entity):
-            return Territory(*chain(*(self._and(child, other) for child in self.entities)))
+            return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
             return Entity()
         if self in other:
             return self
 
-        tmp  = [self & child for child in other.entities]
-        inters =  Territory.union(*tmp)
-        return inters        
-
+        return Territory.union(*(self & child for child in other.entities))
+     
 
     def __sub__(self, other: Territory | Entity) -> Territory:
         if isinstance(other, Entity):
@@ -184,11 +178,8 @@ class Territory:
             return self
         if self in other:
             return Territory()
-        
-        tmp  = [self - child for child in other.entities]
-        inters = Territory.intersection(*tmp)
-        print(inters)
-        return inters
+
+        return Territory.intersection(*(self - child for child in other.entities))
 
 
     def __repr__(self) -> str:
