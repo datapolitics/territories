@@ -77,17 +77,20 @@ def test_inclusion():
 def test_union():
     assert a | d == Territory(sud)
     assert c | d == Territory(idf, marseille, metropole)
+
     for i, j in product(exemples, exemples):
         assert i | j == j | i
+
 
 def test_intersection():
     assert a & b == a
     assert a & d == Territory(marseille)
     assert e & f == Territory(idf, metropole)
+    
     for i, j in product(exemples, exemples):
         assert i & j == j & i
 
+
 def test_substraction():
     assert a - b == Territory()
-    print(b - a)
     assert b - a == Territory(metropole, idf)
