@@ -2,7 +2,8 @@ import rustworkx as rx
 
 from itertools import product
 
-from territories import Part, Territory, Partition
+from territories import Territory
+from territories.partitions import Part, Partition
 
 
 lyon = Part("Lyon")
@@ -19,43 +20,39 @@ sud = Part("Sud", False, Partition.REGION)
 idf = Part("Île-de-France", False, Partition.REGION)
 rhone = Part("Rhône", False, Partition.DEP)
 
-france = Part("France", False, Partition.PAYS)
+france = Part("France", False, Partition.COUNTRY)
 
 
-def build_tree() -> rx.PyDiGraph:
-    print("BUILDING TREE : this is a very long operation")
-    entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
-    tree= rx.PyDiGraph()
-    entities_indices = tree.add_nodes_from(entities)
+entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
-    mapper = {o : idx for o, idx in zip(entities, entities_indices)}
-    edges = [
-        (france, idf),
-        (france, sud),
-        
-        (idf, nogent),
-        (idf, pantin),
-        (idf, paris),
+tree = rx.PyDiGraph()
+entities_indices = tree.add_nodes_from(entities)
 
-        (sud, marseille),
-        (sud, rhone),
+mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+edges = [
+    (france, idf),
+    (france, sud),
+    
+    (idf, nogent),
+    (idf, pantin),
+    (idf, paris),
 
-        (rhone, metropole),
-        (rhone, sté),
+    (sud, marseille),
+    (sud, rhone),
 
-        (metropole, villeurbane),
-        (metropole, lyon),
-        ]
+    (rhone, metropole),
+    (rhone, sté),
 
-    tree.add_edges_from([
-        (mapper[parent], mapper[child], None) for parent, child in edges
-    ])
+    (metropole, villeurbane),
+    (metropole, lyon),
+    ]
 
-    return tree
+tree.add_edges_from([
+    (mapper[parent], mapper[child], None) for parent, child in edges
+])
 
-
-Territory.assign_tree(build_tree())
+Territory.assign_tree(tree)
 
 a = Territory(sté, marseille)
 b = Territory(lyon, france)
@@ -64,16 +61,20 @@ d = Territory(lyon, villeurbane, marseille)
 e = Territory(rhone, idf)
 f = Territory(idf, marseille, metropole)
 
-
 exemples = (a, b, c, d, e, f)
 
+
 def test_eqality():
+    Territory.assign_tree(tree)
+
     assert b == Territory(france)
 
     for i, j in product(exemples, exemples):
         assert (j == i) == (i == j)
 
 def test_addition():
+    Territory.assign_tree(tree)
+
     assert d + a == Territory(sud)
     assert c + a == Territory(idf, sud)
     assert d + c == Territory(metropole, marseille, idf)
@@ -83,6 +84,8 @@ def test_addition():
 
 
 def test_inclusion():
+    Territory.assign_tree(tree)
+
     assert a in b
     assert a in c + a
     assert a not in d
@@ -94,6 +97,8 @@ def test_inclusion():
 
 
 def test_union():
+    Territory.assign_tree(tree)
+
     assert a | d == Territory(sud)
     assert c | d == Territory(idf, marseille, metropole)
 
@@ -102,6 +107,8 @@ def test_union():
 
 
 def test_intersection():
+    Territory.assign_tree(tree)
+
     assert a & b == a
     assert a & d == Territory(marseille)
     assert e & f == Territory(idf, metropole)
@@ -111,5 +118,7 @@ def test_intersection():
 
 
 def test_substraction():
+    Territory.assign_tree(tree)
+
     assert a - b == Territory()
     assert b - a == Territory(metropole, idf)

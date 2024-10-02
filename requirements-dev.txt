@@ -1,6 +1,7 @@
 rustworkx
 python-dotenv
 perfect_hash
+more-itertools
 
 
 psycopg2-binary

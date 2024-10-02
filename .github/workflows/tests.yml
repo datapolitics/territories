@@ -26,8 +26,10 @@ jobs:
       - name: Install package
         run: pip install -r requirements-dev.txt && pip install .
 
-      - name: Check dir
-        run: ls -la
+      - name: Checks
+        run: |
+          ls -la
+          pip list
 
       - name: Test
         run: pytest

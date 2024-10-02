@@ -1,1 +1,1 @@
-from territories.territories import Territory, Part, Partition
+from territories.territories import Territory

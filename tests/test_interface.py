@@ -1,6 +1,7 @@
 import rustworkx as rx
 
-from territories import Part, Territory, Partition
+from territories import Territory
+from territories.partitions import Part, Partition, Node
 
 
 lyon = Part("Lyon")
@@ -17,43 +18,40 @@ sud = Part("Sud", False, Partition.REGION)
 idf = Part("Île-de-France", False, Partition.REGION)
 rhone = Part("Rhône", False, Partition.DEP)
 
-france = Part("France", False, Partition.PAYS)
+france = Part("France", False, Partition.COUNTRY)
 
 
-def build_tree() -> rx.PyDiGraph:
-    print("BUILDING TREE : this is a very long operation")
-    entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
+entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
-    tree= rx.PyDiGraph()
-    entities_indices = tree.add_nodes_from(entities)
+tree= rx.PyDiGraph()
+entities_indices = tree.add_nodes_from(entities)
 
-    mapper = {o : idx for o, idx in zip(entities, entities_indices)}
-    edges = [
-        (france, idf),
-        (france, sud),
-        
-        (idf, nogent),
-        (idf, pantin),
-        (idf, paris),
+mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+edges = [
+    (france, idf),
+    (france, sud),
+    
+    (idf, nogent),
+    (idf, pantin),
+    (idf, paris),
 
-        (sud, marseille),
-        (sud, rhone),
+    (sud, marseille),
+    (sud, rhone),
 
-        (rhone, metropole),
-        (rhone, sté),
+    (rhone, metropole),
+    (rhone, sté),
 
-        (metropole, villeurbane),
-        (metropole, lyon),
-        ]
+    (metropole, villeurbane),
+    (metropole, lyon),
+    ]
 
-    tree.add_edges_from([
-        (mapper[parent], mapper[child], None) for parent, child in edges
-    ])
-
-    return tree
+tree.add_edges_from([
+    (mapper[parent], mapper[child], None) for parent, child in edges
+])
 
 
-Territory.assign_tree(build_tree())
+Territory.assign_tree(tree)
+
 
 a = Territory(sté, marseille)
 b = Territory(lyon, france)
@@ -66,21 +64,51 @@ exemples = (a, b, c, d, e, f)
 
 
 def test_creation():
+    # Territory.assign_tree(tree)
     Territory()
 
 
 def test_from_es():
+    # Territory.assign_tree(tree)
     new = Territory.from_name("Pantin", "Rhône")
     assert new == Territory(pantin, rhone)
 
 
 def test_union():
+    Territory.assign_tree(tree)
     t = Territory.union(c, f, a)
     assert t == Territory(france)
 
 
 def test_intersection():
+    Territory.assign_tree(tree)
+
     t = Territory.intersection(b, c, d)
     assert t == Territory(metropole)
     t = Territory.intersection(c, b, e, f)
     assert t == Territory(metropole, idf)
+
+
+
+def test_build_tree():
+
+    nodes = [
+        Node(id='CNTRY:France', label='France', level='CNTRY', parent_id=None),
+        Node(id='REG:Sud', label='Sud', level='REG', parent_id='CNTRY:France'),
+        Node(id='REG:idf', label='île-de-france', level='REG', parent_id='CNTRY:France'),
+
+        Node(id='DEP:Rhone', label='Rhône', level='DEP', parent_id='REG:Sud'),
+        Node(id='DEP:metropole', label='Grand Lyon', level='DEP', parent_id='REG:Sud'),
+
+        Node(id='COM:Pantin', label='Pantin', level='COM', parent_id="REG:idf"),
+        Node(id='COM:Nogent', label='Nogent', level='COM', parent_id="REG:idf"),
+        Node(id='COM:Paris', label='Paris', level='COM', parent_id="REG:idf"),
+
+        Node(id='COM:sté', label='Saint Étienne', level='COM', parent_id="DEP:Rhone"),
+        Node(id='COM:Lyon', label='Lyon', level='COM', parent_id="DEP:metropole"),
+        Node(id='COM:Villeurbane', label='Villeurbane', level='COM', parent_id="DEP:metropole"),
+
+        Node(id='COM:Marseille', label='Marseille', level='COM', parent_id="REG:Sud"),
+    ]
+
+    Territory.build_tree(nodes)
