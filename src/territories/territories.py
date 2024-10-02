@@ -13,10 +13,9 @@ from enum import Enum
 
 class Partition(Enum):
     COMMUNE = 0
-    EPCI = 1
-    DEP = 2
-    REGION = 4
-    PAYS = 5
+    DEP = 1
+    REGION = 2
+    PAYS = 3
 
 
 @dataclass(frozen=True)
@@ -27,8 +26,10 @@ class Part:
     es_code: Optional[str] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
+
     def __repr__(self) -> str:
         return self.name
+
 
     def contains(self, other, tree: rx.PyDiGraph) -> bool:
         assert self.tree_id
@@ -54,13 +55,13 @@ class Territory:
 
     @classmethod
     def assign_tree(cls, tree):
-        # create perfect hash table
         elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
         for i, e in enumerate(elements):
             object.__setattr__(e, 'tree_id', i)
 
+        # create perfect hash table
+        # =====================
         names = [e.name for e in elements]
-
         f1, f2, G = generate_hash(names)
 
         fmt = Format()
@@ -74,6 +75,7 @@ class Territory:
 
         def perfect_hash(key):
             return (G[hash_f(key, S1)] + G[hash_f(key, S2)]) % NG
+        # =====================
 
         for name in names:
             i = perfect_hash(name)
@@ -84,7 +86,6 @@ class Territory:
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
 
-
     @classmethod
     def hash(cls, name: str) -> int:
         return cls.perfect_hash_fct(name)
@@ -93,7 +94,6 @@ class Territory:
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
         return (a == b) or (a in rx.ancestors(tree, b))
-
 
 
     @classmethod
@@ -116,7 +116,6 @@ class Territory:
             return {node}
 
         gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        # print(type(iter(gen)))
         union =  set.union(*gen)
 
         if union == children:
@@ -148,31 +147,34 @@ class Territory:
     def _and(cls, a: Part, b: Part) -> set[Part]:
         if a == b:
             return {a}
-        # if a in b
-        if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
+        if a.tree_id in rx.ancestors(cls.tree, b.tree_id): # if a in b
             return {b}
-        # if b in a
-        if b.tree_id in rx.ancestors(cls.tree, a.tree_id):
+        if b.tree_id in rx.ancestors(cls.tree, a.tree_id): # if b in a
             return {a}
         return set()
 
+
+    @classmethod
+    def from_name(cls, *args: Iterable[str]):
+        entities_idxs = [cls.hash(name) for name in args]
+        entities = {cls.tree.get_node_data(i) for i in cls.minimize(cls.root_index, entities_idxs)} # useless
+        return Territory(*entities)
+    
 
     def __init__(self, *args: Iterable[Part]) -> None:
         if self.tree is None:
             raise Exception('Tree is not initialized')
         entities = set(args)
         if entities:
-            # root = next(tree.get_node_data(i) for i in tree.node_indices() if tree.in_degree(i) == 0)
             entities_idxs = [self.hash(e.name) for e in entities]
             #  guarantee the Territory is always represented in minimal form
             self.entities = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
-            # print(self.entities)
         else:
             self.entities = set()
 
 
     def __eq__(self, value: Territory) -> bool:
-        # should also check for equality if ids
+        # should also check for equality of ids
         # since some entities share the same territory but are not equal
         # ex : Parlement and ADEME both occupy France, yet are not the same entities
         return self.entities == value.entities
@@ -185,12 +187,14 @@ class Territory:
     
 
     def is_contained(self, other: Territory) -> bool:
+        print(self, other)
         if self == other:
             return True
         for entity in self.entities:
             ancestors = rx.ancestors(self.tree, entity.tree_id) | {entity.tree_id}
             if not any(other_entity.tree_id in ancestors for other_entity in other.entities):
                 return False
+        return True
     
 
     def __contains__(self, other: Territory | Part) -> bool:
@@ -221,7 +225,7 @@ class Territory:
         if isinstance(other, Part):
             return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
-            return Part()
+            return Territory()
         if self in other:
             return self
 
@@ -247,10 +251,3 @@ class Territory:
 
     def to_es_filter(self) -> list[str]:
         return [{"term" : {"tu_zone" : e.es_code}} for e in self.entities]
-
-    
-    @classmethod
-    def from_name(cls, *args: Iterable[str]):
-        entities_idxs = [cls.hash(name) for name in args]
-        entities = {cls.tree.get_node_data(i) for i in cls.minimize(cls.root_index, entities_idxs)} # useless
-        return Territory(*entities)

@@ -10,14 +10,11 @@ on:
 
 permissions:
   contents: read
-  # Needed for the 'trilom/file-changes-action' action
   pull-requests: read
 
 
 jobs:
   run-the-tests:
-    # runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted", "staging-4c-16gb"]')[github.repository == 'github/docs-internal'] }}
-    # runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted"]')[github.repository == 'github/docs-internal'] }}
     runs-on: "ubuntu-latest"
     steps:
       - name: Checkout
@@ -28,6 +25,9 @@ jobs:
 
       - name: Install package
         run: pip install -r requirements-dev.txt && pip install .
+
+      - name: Check dir
+        run: ls -la
 
       - name: Test
         run: pytest

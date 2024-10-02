@@ -13,7 +13,7 @@ pantin = Part("Pantin")
 villeurbane = Part("Villeurbane")
 sté = Part("Saint Etienne")
 
-metropole = Part("Grand Lyon", False, Partition.EPCI)
+metropole = Part("Grand Lyon", False, Partition.DEP)
 
 sud = Part("Sud", False, Partition.REGION)
 idf = Part("Île-de-France", False, Partition.REGION)
@@ -64,14 +64,14 @@ d = Territory(lyon, villeurbane, marseille)
 e = Territory(rhone, idf)
 f = Territory(idf, marseille, metropole)
 
+
 exemples = (a, b, c, d, e, f)
 
 def test_eqality():
     assert b == Territory(france)
 
     for i, j in product(exemples, exemples):
-        if i == j:
-            assert j == i
+        assert (j == i) == (i == j)
 
 def test_addition():
     assert d + a == Territory(sud)
@@ -86,6 +86,11 @@ def test_inclusion():
     assert a in b
     assert a in c + a
     assert a not in d
+    assert d in f
+
+    for i, j in zip(exemples, exemples):
+        assert j in i
+        assert i in j
 
 
 def test_union():

@@ -1,7 +1,9 @@
-pydantic
-networkx
+rustworkx
 python-dotenv
+perfect_hash
 
+
+psycopg2-binary
 pytest
 ipykernel
 setuptools
