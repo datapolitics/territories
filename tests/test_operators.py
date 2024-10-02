@@ -1,4 +1,4 @@
-import networkx as nx
+import rustworkx as rx
 
 from itertools import product
 
@@ -22,27 +22,40 @@ rhone = Part("Rhône", False, Partition.DEP)
 france = Part("France", False, Partition.PAYS)
 
 
-# buiding the reference territory tree
-tree = nx.DiGraph([
-    (france, sud),
-    (france, idf),
+def build_tree() -> rx.PyDiGraph:
+    print("BUILDING TREE : this is a very long operation")
+    entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
-    (idf, nogent),
-    (idf, pantin),
-    (idf, paris),
+    tree= rx.PyDiGraph()
+    entities_indices = tree.add_nodes_from(entities)
 
-    (sud, marseille),
-    (sud, rhone),
+    mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+    edges = [
+        (france, idf),
+        (france, sud),
+        
+        (idf, nogent),
+        (idf, pantin),
+        (idf, paris),
 
-    (rhone, metropole),
-    (rhone, sté),
+        (sud, marseille),
+        (sud, rhone),
 
-    (metropole, villeurbane),
-    (metropole, lyon),
-])
+        (rhone, metropole),
+        (rhone, sté),
+
+        (metropole, villeurbane),
+        (metropole, lyon),
+        ]
+
+    tree.add_edges_from([
+        (mapper[parent], mapper[child], None) for parent, child in edges
+    ])
+
+    return tree
 
 
-Territory.assign_tree(tree)
+Territory.assign_tree(build_tree())
 
 a = Territory(sté, marseille)
 b = Territory(lyon, france)
@@ -55,7 +68,7 @@ exemples = (a, b, c, d, e, f)
 
 def test_eqality():
     assert b == Territory(france)
-    
+
     for i, j in product(exemples, exemples):
         if i == j:
             assert j == i
