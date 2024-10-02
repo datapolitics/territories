@@ -1,48 +1,61 @@
-import networkx as nx
+import rustworkx as rx
 
 from itertools import product
 
-from territories import Entity, Territory, Type
+from territories import Part, Territory, Partition
 
 
-lyon = Entity("Lyon")
-marseille = Entity("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
-paris = Entity("Paris")
-nogent = Entity("Nogent")
-pantin = Entity("Pantin")
-villeurbane = Entity("Villeurbane")
-sté = Entity("Saint Etienne")
+lyon = Part("Lyon")
+marseille = Part("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
+paris = Part("Paris")
+nogent = Part("Nogent")
+pantin = Part("Pantin")
+villeurbane = Part("Villeurbane")
+sté = Part("Saint Etienne")
 
-metropole = Entity("Grand Lyon", False, Type.EPCI)
+metropole = Part("Grand Lyon", False, Partition.EPCI)
 
-sud = Entity("Sud", False, Type.REGION)
-idf = Entity("Île-de-France", False, Type.REGION)
-rhone = Entity("Rhône", False, Type.DEP)
+sud = Part("Sud", False, Partition.REGION)
+idf = Part("Île-de-France", False, Partition.REGION)
+rhone = Part("Rhône", False, Partition.DEP)
 
-france = Entity("France", False, Type.PAYS)
-
-
-# buiding the reference territory tree
-tree = nx.DiGraph([
-    (france, sud),
-    (france, idf),
-
-    (idf, nogent),
-    (idf, pantin),
-    (idf, paris),
-
-    (sud, marseille),
-    (sud, rhone),
-
-    (rhone, metropole),
-    (rhone, sté),
-
-    (metropole, villeurbane),
-    (metropole, lyon),
-])
+france = Part("France", False, Partition.PAYS)
 
 
-Territory.assign_tree(tree)
+def build_tree() -> rx.PyDiGraph:
+    print("BUILDING TREE : this is a very long operation")
+    entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
+
+    tree= rx.PyDiGraph()
+    entities_indices = tree.add_nodes_from(entities)
+
+    mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+    edges = [
+        (france, idf),
+        (france, sud),
+        
+        (idf, nogent),
+        (idf, pantin),
+        (idf, paris),
+
+        (sud, marseille),
+        (sud, rhone),
+
+        (rhone, metropole),
+        (rhone, sté),
+
+        (metropole, villeurbane),
+        (metropole, lyon),
+        ]
+
+    tree.add_edges_from([
+        (mapper[parent], mapper[child], None) for parent, child in edges
+    ])
+
+    return tree
+
+
+Territory.assign_tree(build_tree())
 
 a = Territory(sté, marseille)
 b = Territory(lyon, france)
@@ -55,6 +68,7 @@ exemples = (a, b, c, d, e, f)
 
 def test_eqality():
     assert b == Territory(france)
+
     for i, j in product(exemples, exemples):
         if i == j:
             assert j == i

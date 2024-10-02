@@ -2,3 +2,6 @@
 # networkx
 
 rustworkx
+psycopg2-binary
+python-dotenv
+perfect_hash

@@ -1,1 +1,1 @@
-from territories.territories import Territory, Entity, Type
+from territories.territories import Territory, Part, Partition
