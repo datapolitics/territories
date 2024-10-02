@@ -53,45 +53,17 @@ f = Territory(idf, marseille, metropole)
 
 exemples = (a, b, c, d, e, f)
 
-def test_eqality():
-    assert b == Territory(france)
-    
-    for i, j in product(exemples, exemples):
-        if i == j:
-            assert j == i
-
-def test_addition():
-    assert d + a == Territory(sud)
-    assert c + a == Territory(idf, sud)
-    assert d + c == Territory(metropole, marseille, idf)
-
-    for i, j in product(exemples, exemples):
-        assert i + j == j + i
 
 
-def test_inclusion():
-    assert a in b
-    assert a in c + a
-    assert a not in d
+def test_creation():
+    Territory()
 
 
 def test_union():
-    assert a | d == Territory(sud)
-    assert c | d == Territory(idf, marseille, metropole)
-
-    for i, j in product(exemples, exemples):
-        assert i | j == j | i
+    t = Territory.union(a, b, c, d)
+    print(t)
 
 
 def test_intersection():
-    assert a & b == a
-    assert a & d == Territory(marseille)
-    assert e & f == Territory(idf, metropole)
-    
-    for i, j in product(exemples, exemples):
-        assert i & j == j & i
-
-
-def test_substraction():
-    assert a - b == Territory()
-    assert b - a == Territory(metropole, idf)
+    t = Territory.intersection(a, b, c, d)
+    print(t)

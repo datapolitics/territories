@@ -9,7 +9,7 @@ from itertools import chain
 from enum import Enum
 
 
-class Type(Enum):
+class Partition(Enum):
     COMMUNE = 0
     EPCI = 1
     DEP = 2
@@ -18,10 +18,10 @@ class Type(Enum):
 
 
 @dataclass(frozen=True)
-class Entity:
+class Part:
     name: str
     atomic: bool = True
-    type: Type = Type.COMMUNE
+    partition_type: Partition = Partition.COMMUNE
     geo_bound: None = None
     es_code: Optional[str] = None
 
@@ -36,13 +36,13 @@ class Entity:
 class Territory:
     tree: Optional[nx.DiGraph] = None
 
-
     @classmethod
     def assign_tree(cls, tree):
         cls.tree = tree
 
+
     @classmethod
-    def minimize(cls, node: Entity, items: Iterable[Entity]) -> set[Entity]:
+    def minimize(cls, node: Part, items: Iterable[Part]) -> set[Part]:
         """evaluate complexity of this method
 
         Args:
@@ -82,7 +82,7 @@ class Territory:
 
 
     @classmethod
-    def _sub(cls, a: Entity, b: Entity) -> set[Entity]:
+    def _sub(cls, a: Part, b: Part) -> set[Part]:
         if a == b:
             return set()
         if a in nx.ancestors(cls.tree, b):
@@ -91,7 +91,7 @@ class Territory:
     
 
     @classmethod
-    def _and(cls, a: Entity, b: Entity) -> set[Entity]:
+    def _and(cls, a: Part, b: Part) -> set[Part]:
         if a == b:
             return {a}
         # if a in b
@@ -103,7 +103,7 @@ class Territory:
         return set()
 
 
-    def __init__(self, *args: Iterable[Entity]) -> None:
+    def __init__(self, *args: Iterable[Part]) -> None:
         if self.tree is None:
             raise Exception('Tree is not initialized')
         entities = set(args)
@@ -116,6 +116,9 @@ class Territory:
 
 
     def __eq__(self, value: Territory) -> bool:
+        # should also check for equality if ids
+        # since some entities share the same territory but are not equal
+        # ex : Parlement and ADEME both occupy France, yet are not the same entities
         return self.entities == value.entities
 
 
@@ -125,10 +128,10 @@ class Territory:
         )
     
 
-    def is_contained(self, other: Territory | Entity) -> bool:
+    def is_contained(self, other: Territory | Part) -> bool:
         for entity in self.entities:
             parents = nx.ancestors(self.tree, entity) | {entity}
-            if isinstance(other, Entity):
+            if isinstance(other, Part):
                 if other not in parents:
                     return False
             else:
@@ -137,8 +140,8 @@ class Territory:
         return True
     
 
-    def __contains__(self, other: Territory | Entity) -> bool:
-        if isinstance(other, Entity):
+    def __contains__(self, other: Territory | Part) -> bool:
+        if isinstance(other, Part):
             other = Territory(other)
         return other.is_contained(self)
     
@@ -147,12 +150,12 @@ class Territory:
         pass
 
 
-    def __or__(self, other: Territory | Entity) -> Territory:
+    def __or__(self, other: Territory | Part) -> Territory:
         if not self.entities:
             entities = tuple()
         else:
             entities = self.entities
-        if isinstance(other, Entity):
+        if isinstance(other, Part):
             return Territory(*chain(entities, [other]))
         if other.entities is not None:
             return Territory(*chain(entities, other.entities))
@@ -160,19 +163,19 @@ class Territory:
     
 
 
-    def __and__(self, other: Territory | Entity) -> Territory:
-        if isinstance(other, Entity):
+    def __and__(self, other: Territory | Part) -> Territory:
+        if isinstance(other, Part):
             return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
-            return Entity()
+            return Part()
         if self in other:
             return self
 
         return Territory.union(*(self & child for child in other.entities))
      
 
-    def __sub__(self, other: Territory | Entity) -> Territory:
-        if isinstance(other, Entity):
+    def __sub__(self, other: Territory | Part) -> Territory:
+        if isinstance(other, Part):
             return Territory(*chain(*(self._sub(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
             return self

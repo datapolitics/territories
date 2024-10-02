@@ -1,6 +1,6 @@
 pydantic
 networkx
-
+python-dotenv
 
 pytest
 ipykernel
