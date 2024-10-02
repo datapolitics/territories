@@ -23,7 +23,7 @@ class Partition(Enum):
 class Part:
     name: str
     atomic: bool = True
-    type: Partition = Partition.COMMUNE
+    partition_type: Partition = Partition.COMMUNE
     es_code: Optional[str] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
@@ -46,11 +46,11 @@ class Part:
         return reduce(lambda x, y: x | y, [other & child for child in self.entities])
 
 
-
 class Territory:
     tree: Optional[rx.DiGraph] = None
     root_index: Optional[int] = None
     perfect_hash_fct: Optional[Callable[[str], int]] = None
+
 
     @classmethod
     def assign_tree(cls, tree):
@@ -93,6 +93,7 @@ class Territory:
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
         return (a == b) or (a in rx.ancestors(tree, b))
+
 
 
     @classmethod
@@ -171,6 +172,9 @@ class Territory:
 
 
     def __eq__(self, value: Territory) -> bool:
+        # should also check for equality if ids
+        # since some entities share the same territory but are not equal
+        # ex : Parlement and ADEME both occupy France, yet are not the same entities
         return self.entities == value.entities
 
 
@@ -187,7 +191,6 @@ class Territory:
             ancestors = rx.ancestors(self.tree, entity.tree_id) | {entity.tree_id}
             if not any(other_entity.tree_id in ancestors for other_entity in other.entities):
                 return False
-        return True
     
 
     def __contains__(self, other: Territory | Part) -> bool:
