@@ -28,6 +28,7 @@ jobs:
 
       - name: Checks
         run: |
+          sudo apt purge python3-setuptools
           python -m build
           ls -la
           pip list
