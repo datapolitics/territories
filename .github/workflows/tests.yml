@@ -28,8 +28,10 @@ jobs:
 
       - name: Checks
         run: |
+          python -m build
           ls -la
           pip list
+          pip install .
 
       - name: Test
         run: pytest

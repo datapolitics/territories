@@ -7,5 +7,6 @@ more-itertools
 psycopg2-binary
 pytest
 ipykernel
+build
 setuptools
 sphinx
