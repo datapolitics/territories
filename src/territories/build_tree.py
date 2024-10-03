@@ -15,7 +15,6 @@ def build_tree_from_db():
         Territory.build_tree(data_stream)
 
 
-
 if __name__ == "__main__":
     build_tree_from_db()
     
