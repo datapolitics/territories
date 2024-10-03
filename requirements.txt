@@ -1,5 +1,4 @@
 rustworkx
-psycopg2-binary
 python-dotenv
 perfect_hash
-
+more-itertools~=10.5.0

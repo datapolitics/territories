@@ -1,49 +1,16 @@
 from __future__ import annotations
+import pickle
 
 import rustworkx as rx
 
-from perfect_hash import generate_hash, Format
 
 from typing import Iterable, Optional, Callable
-from dataclasses import dataclass, field
+from perfect_hash import generate_hash, Format
+from more_itertools import batched
 from functools import reduce
 from itertools import chain
-from enum import Enum
 
-
-class Partition(Enum):
-    COMMUNE = 0
-    EPCI = 1
-    DEP = 2
-    REGION = 4
-    PAYS = 5
-
-
-@dataclass(frozen=True)
-class Part:
-    name: str
-    atomic: bool = True
-    partition_type: Partition = Partition.COMMUNE
-    es_code: Optional[str] = None
-    tree_id: Optional[int] = field(default=None, compare=False)
-
-    def __repr__(self) -> str:
-        return self.name
-
-    def contains(self, other, tree: rx.PyDiGraph) -> bool:
-        assert self.tree_id
-        assert other.tree_id
-        return (self == other) or (self.tree_id in rx.ancestors(tree, other.tree_id))
-    
-        
-    def __and__(self, other):
-        if other is None:
-            return None
-        if self in other:
-            return self
-        if self.is_disjoint(other):
-            return None
-        return reduce(lambda x, y: x | y, [other & child for child in self.entities])
+from territories.partitions import Part, Partition, Node
 
 
 class Territory:
@@ -52,16 +19,11 @@ class Territory:
     perfect_hash_fct: Optional[Callable[[str], int]] = None
 
 
-    @classmethod
-    def assign_tree(cls, tree):
+    @staticmethod
+    def create_hash_function(names: list[str]) -> Callable[[str], int]:
         # create perfect hash table
-        elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
-        for i, e in enumerate(elements):
-            object.__setattr__(e, 'tree_id', i)
-
-        names = [e.name for e in elements]
-
         f1, f2, G = generate_hash(names)
+        G = tuple(G) # lookup is faster on a tuple
 
         fmt = Format()
         NG = len(G)
@@ -75,6 +37,107 @@ class Territory:
         def perfect_hash(key):
             return (G[hash_f(key, S1)] + G[hash_f(key, S2)]) % NG
 
+        return perfect_hash
+
+
+    @staticmethod
+    def to_part(node: Node) -> Part:
+        match node.level:
+            case "COM":
+                partition = Partition.COMMUNE
+            case "DEP":
+                partition = Partition.DEP
+            case "REG":
+                partition = Partition.REGION
+            case "CNTRY":
+                partition = Partition.COUNTRY
+            case _:
+                partition = None
+
+        return Part(
+            name=node.label,
+            es_code=node.id,
+            partition_type=partition
+        )
+
+
+    @classmethod
+    def reset(cls):
+        # if tree is a reference to a foreign object
+        # I do not want to assign None to it
+        # so first I destroy the reference
+        del cls.tree
+        cls.tree = None
+        cls.perfect_hash_fct = None
+        cls.root_index = None
+
+
+    @classmethod
+    def load_tree(cls, file: pickle._ReadableFileobj):
+        cls.reset()
+        cls.tree = pickle.load(file)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
+
+
+    @classmethod
+    def build_tree(cls, data_stream: Iterable[Node]):
+        cls.reset()
+        
+        tree = rx.PyDiGraph()
+        mapper = {}
+        orphans: list[Part] = []
+        batch_size = 1024
+        for batch in batched(data_stream, batch_size):
+            entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
+
+            for node, tree_idx in zip(batch, entities_indices):
+                if node.level != Partition.COMMUNE: # communes don't have any children
+                    mapper[node.id] = tree_idx
+                object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
+
+            edges = []
+            for node, tree_id in zip(batch, entities_indices):
+                if node.parent_id is None:
+                    pass # root node
+                if node.parent_id in mapper:
+                    edges.append((mapper[node.parent_id], tree_id, None))
+                else:
+                    object.__setattr__(node, 'tree_id', tree_id)
+                    orphans.append(node)
+            tree.add_edges_from(edges)
+
+
+        edges = tuple((mapper[node.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        tree.add_edges_from(edges)
+
+        orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+        print(f"{len(orphans)} elements where not added to the tree because they have no parents")
+
+
+        names: list[Part] = [tree.get_node_data(i).es_code for i in tree.node_indices()]
+        print(f"there are {len(names)} element in the tree")
+
+        # perfect_hash = cls.create_hash_function(names)
+
+        # for name in names:
+        #     i = perfect_hash(name)
+        #     assert name == tree.get_node_data(i).es_code
+
+        cls.tree = tree
+        # cls.perfect_hash_fct = perfect_hash  
+        cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+
+
+    @classmethod
+    def assign_tree(cls, tree):
+        cls.reset()
+
+        elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
+        for i, e in enumerate(elements):
+            object.__setattr__(e, 'tree_id', i)
+
+        names = [e.name for e in elements]
+        perfect_hash = cls.create_hash_function(names)
         for name in names:
             i = perfect_hash(name)
             assert name == tree.get_node_data(i).name
@@ -82,7 +145,6 @@ class Territory:
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash        
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
-
 
 
     @classmethod
@@ -93,7 +155,6 @@ class Territory:
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
         return (a == b) or (a in rx.ancestors(tree, b))
-
 
 
     @classmethod
@@ -116,7 +177,6 @@ class Territory:
             return {node}
 
         gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        # print(type(iter(gen)))
         union =  set.union(*gen)
 
         if union == children:
@@ -148,31 +208,34 @@ class Territory:
     def _and(cls, a: Part, b: Part) -> set[Part]:
         if a == b:
             return {a}
-        # if a in b
-        if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
+        if a.tree_id in rx.ancestors(cls.tree, b.tree_id): # if a in b
             return {b}
-        # if b in a
-        if b.tree_id in rx.ancestors(cls.tree, a.tree_id):
+        if b.tree_id in rx.ancestors(cls.tree, a.tree_id): # if b in a
             return {a}
         return set()
 
+
+    @classmethod
+    def from_name(cls, *args: Iterable[str]):
+        entities_idxs = [cls.hash(name) for name in args]
+        entities = {cls.tree.get_node_data(i) for i in cls.minimize(cls.root_index, entities_idxs)} # useless
+        return Territory(*entities)
+    
 
     def __init__(self, *args: Iterable[Part]) -> None:
         if self.tree is None:
             raise Exception('Tree is not initialized')
         entities = set(args)
         if entities:
-            # root = next(tree.get_node_data(i) for i in tree.node_indices() if tree.in_degree(i) == 0)
             entities_idxs = [self.hash(e.name) for e in entities]
             #  guarantee the Territory is always represented in minimal form
             self.entities = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
-            # print(self.entities)
         else:
             self.entities = set()
 
 
     def __eq__(self, value: Territory) -> bool:
-        # should also check for equality if ids
+        # should also check for equality of ids
         # since some entities share the same territory but are not equal
         # ex : Parlement and ADEME both occupy France, yet are not the same entities
         return self.entities == value.entities
@@ -185,12 +248,14 @@ class Territory:
     
 
     def is_contained(self, other: Territory) -> bool:
+        print(self, other)
         if self == other:
             return True
         for entity in self.entities:
             ancestors = rx.ancestors(self.tree, entity.tree_id) | {entity.tree_id}
             if not any(other_entity.tree_id in ancestors for other_entity in other.entities):
                 return False
+        return True
     
 
     def __contains__(self, other: Territory | Part) -> bool:
@@ -221,7 +286,7 @@ class Territory:
         if isinstance(other, Part):
             return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
-            return Part()
+            return Territory()
         if self in other:
             return self
 
@@ -247,10 +312,3 @@ class Territory:
 
     def to_es_filter(self) -> list[str]:
         return [{"term" : {"tu_zone" : e.es_code}} for e in self.entities]
-
-    
-    @classmethod
-    def from_name(cls, *args: Iterable[str]):
-        entities_idxs = [cls.hash(name) for name in args]
-        entities = {cls.tree.get_node_data(i) for i in cls.minimize(cls.root_index, entities_idxs)} # useless
-        return Territory(*entities)

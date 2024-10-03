@@ -8,10 +8,11 @@ from contextlib import contextmanager
 
 load_dotenv()
 
-user = os.environ["DB_USER"]
-pswd = os.environ["DB_PSWD"]
-port = os.environ["DB_PORT"]
-host = os.environ["DB_HOST"]
+user = os.environ.get("DB_USER")
+pswd = os.environ.get("DB_PSWD")
+port = os.environ.get("DB_PORT")
+host = os.environ.get("DB_HOST")
+
 
 @contextmanager
 def create_connection(database: str):
@@ -27,6 +28,7 @@ def create_connection(database: str):
     finally:
         connection.close()
 
+
 @contextmanager
 def borrow_connection(connection):
     with connection as c:
@@ -37,48 +39,40 @@ def borrow_connection(connection):
             cursor.close()
 
 
-def read(
+def read_stream(
         connection,
         table: str,
         elements: Optional[Iterable] = None,
         conditions: Optional[dict]=None,
-        operator: Optional[str]=None
+        operator: Optional[str]=None,
+        batch_size: int = 1024
         ):
-    with borrow_connection(connection) as cursor:
-        values = []
-        if elements:
-            if isinstance(elements, str):
-                elements = [elements]
-            elements = ', '.join(elements)
-        else:
-            elements = '*'
-        if conditions:
-            is_enumeration = lambda x: isinstance(x, Iterable) and not isinstance(x, str)
-            equality = lambda value: "in" if is_enumeration(value) else '='
-            where = " WHERE " + f" {operator} ".join(f"{k} {equality(v)} %s" for k, v in conditions.items() if v)
-            values.extend((tuple(x) if is_enumeration(x) else x for x in conditions.values()))
-        else:
-            where = ''
-        req = f"SELECT {elements} FROM {table} {where} LIMIT 10;"
-        print(req)
-        # print(values)
-        cursor.execute(req,  values)
-        return cursor.fetchall()
+    cursor = connection.cursor()
+    values = []
+    if elements:
+        if isinstance(elements, str):
+            elements = [elements]
+        elements = ', '.join(elements)
+    else:
+        elements = '*'
+    if conditions:
+        is_enumeration = lambda x: isinstance(x, Iterable) and not isinstance(x, str)
+        equality = lambda value: "in" if is_enumeration(value) else '='
+        where = " WHERE " + f" {operator} ".join(f"{k} {equality(v)} %s" for k, v in conditions.items() if v)
+        values.extend((tuple(x) if is_enumeration(x) else x for x in conditions.values()))
+    else:
+        where = ''
+    req = f"SELECT {elements} FROM {table} {where};"
+    # print(req)
+    # print(values)
+    cursor.itersize = batch_size
+    cursor.execute(req, values)
+    return cursor
 
 
 if __name__ == "__main__":
 
-    print(user)
-    print(pswd)
-    print(port)
-    print(host)
-
 
     with create_connection("crawling") as cnx:
-    # with borrow_connection(conn) as cnx:
-        tus = read(
-            cnx,
-            "TerritorialUnit",
-            ['id', 'level', 'parent_id']
-        )
-    print(tus)
+        for element in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id', 'postal_code']):
+            print(element)

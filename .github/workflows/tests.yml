@@ -1,4 +1,4 @@
-name: 'Run Unittest'
+name: Run Tests
 
 on:
   workflow_dispatch:
@@ -10,24 +10,28 @@ on:
 
 permissions:
   contents: read
-  # Needed for the 'trilom/file-changes-action' action
   pull-requests: read
 
 
 jobs:
-  run-the-tests:
-    # runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted", "staging-4c-16gb"]')[github.repository == 'github/docs-internal'] }}
-    # runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted"]')[github.repository == 'github/docs-internal'] }}
-    runs-on: "ubuntu-latest"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+  build:
 
-      - name: create env
-        run: python -m venv .venv && source .venv/bin/activate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          # Optional - x64 or x86 architecture, defaults to x64
+          # architecture: 'x64'
 
       - name: Install package
-        run: pip install -r requirements-dev.txt && pip install .
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install .
 
       - name: Test
         run: pytest
