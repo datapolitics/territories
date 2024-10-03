@@ -39,14 +39,17 @@ jobs:
 
   pypi-publish:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_BRANCHES: "refs/heads/main"
+      TWINE_USERNAME: datapolitics
+      TWINE_PASSWORD: ${{ secrets.PYPI_PSWD }}
 
     needs:
       - release-build
 
-    permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
-
+    # permissions:
+    #   # IMPORTANT: this permission is mandatory for trusted publishing
+    #   id-token: write
 
     steps:
       - name: Retrieve release distributions
@@ -57,17 +60,6 @@ jobs:
 
       - name: Publish release distributions to PyPI
         run: |
-          echo "PYB_EXTRA_ARGS=publish upload" >> $GITHUB_ENV
-          cat <<- EOF >~/.pypirc
-          [distutils]
-          index-servers=hedwige
-
-          [hedwige]
-          repository=http://pypi.hedwige.fr:8080
-          username=${TWINE_USERNAME}
-          password=${TWINE_PASSWORD}
-          EOF
-          chmod a+r ~/.pypirc
-
           python3 -m pip install --upgrade twine
-          python3 -m twine upload dist/*
+          ls -la
+          python3 -m twine upload --repository-url http://pypi.hedwige.fr:8080  dist/*

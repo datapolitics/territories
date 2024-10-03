@@ -4,8 +4,8 @@ import pickle
 import rustworkx as rx
 
 
+from perfect_hash import generate_hash, IntSaltHash
 from typing import Iterable, Optional, Callable
-from perfect_hash import generate_hash, Format
 from more_itertools import batched
 from functools import reduce
 from itertools import chain
@@ -22,17 +22,16 @@ class Territory:
     @staticmethod
     def create_hash_function(names: list[str]) -> Callable[[str], int]:
         # create perfect hash table
-        f1, f2, G = generate_hash(names)
-        G = tuple(G) # lookup is faster on a tuple
+        f1, f2, G = generate_hash(names, Hash=IntSaltHash)
+        G = tuple(G) # tuple have slightly faster access time
 
-        fmt = Format()
         NG = len(G)
         NS = len(f1.salt)
-        S1 = fmt(f1.salt)
-        S2 = fmt(f2.salt)
+        S1 = tuple(f1.salt)
+        S2 = tuple(f2.salt)
 
         def hash_f(key, T):
-            return sum(ord(T[i % NS]) * ord(c) for i, c in enumerate(key)) % NG
+            return sum(T[i % NS] * ord(c) for i, c in enumerate(key)) % NG
 
         def perfect_hash(key):
             return (G[hash_f(key, S1)] + G[hash_f(key, S2)]) % NG
@@ -77,6 +76,16 @@ class Territory:
         cls.reset()
         cls.tree = pickle.load(file)
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
+        names: list[Part] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
+        print(f"there are {len(names)} element in the tree")
+
+        perfect_hash = cls.create_hash_function(names)
+
+        for name in names:
+            i = perfect_hash(name)
+            assert name == cls.tree.get_node_data(i).es_code
+
+        cls.perfect_hash_fct = perfect_hash  
 
 
     @classmethod
@@ -85,8 +94,20 @@ class Territory:
         
         tree = rx.PyDiGraph()
         mapper = {}
-        orphans: list[Part] = []
+        orphans: list[Node] = []
         batch_size = 1024
+
+        # nodes = tuple(data_stream)
+        # entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in nodes))
+        # for node, tree_idx in zip(nodes, entities_indices):
+        #     if node.level != Partition.COMMUNE: # communes don't have any children
+        #         mapper[node.id] = tree_idx
+        #         object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
+
+        # for node, tree_idx in zip(nodes, entities_indices):
+        #     edges = tuple((mapper[node.parent_id], node.tree_id, None) for node in nodes if node.parent_id)
+        #     tree.add_edges_from(edges)
+
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
@@ -96,35 +117,34 @@ class Territory:
                 object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
 
             edges = []
-            for node, tree_id in zip(batch, entities_indices):
-                if node.parent_id is None:
-                    pass # root node
+            for node, tree_idx in zip(batch, entities_indices):
                 if node.parent_id in mapper:
-                    edges.append((mapper[node.parent_id], tree_id, None))
+                    edges.append((mapper[node.parent_id], tree_idx, None))
                 else:
-                    object.__setattr__(node, 'tree_id', tree_id)
-                    orphans.append(node)
+                    if node.parent_id: # do not append root node to orphans
+                        object.__setattr__(node, 'tree_id', tree_idx)
+                        orphans.append(node)
             tree.add_edges_from(edges)
 
 
-        edges = tuple((mapper[node.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
         tree.add_edges_from(edges)
 
         orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
-        print(f"{len(orphans)} elements where not added to the tree because they have no parents")
+        print(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
 
 
-        names: list[Part] = [tree.get_node_data(i).es_code for i in tree.node_indices()]
-        print(f"there are {len(names)} element in the tree")
+        names: list[str] = [tree.get_node_data(i).es_code for i in tree.node_indices()]
+        print(f"there are {len(names)} elements in the tree")
 
-        # perfect_hash = cls.create_hash_function(names)
+        perfect_hash = cls.create_hash_function(names)
 
-        # for name in names:
-        #     i = perfect_hash(name)
-        #     assert name == tree.get_node_data(i).es_code
+        for name in names:
+            i = perfect_hash(name)
+            assert name == tree.get_node_data(i).es_code
 
         cls.tree = tree
-        # cls.perfect_hash_fct = perfect_hash  
+        cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
 
@@ -154,6 +174,7 @@ class Territory:
 
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
+        # b in a
         return (a == b) or (a in rx.ancestors(tree, b))
 
 
@@ -170,17 +191,22 @@ class Territory:
         """
         if len(items) == 0:
             return set()
+        
         if node in items:
             return {node}
+        
         children = set(cls.tree.successor_indices(node))
+
         if children == set(items):
             return {node}
 
         gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
         union =  set.union(*gen)
 
+        # no sure I need this
         if union == children:
             return {node}
+        
         return union
     
 
@@ -217,9 +243,8 @@ class Territory:
 
     @classmethod
     def from_name(cls, *args: Iterable[str]):
-        entities_idxs = [cls.hash(name) for name in args]
-        entities = {cls.tree.get_node_data(i) for i in cls.minimize(cls.root_index, entities_idxs)} # useless
-        return Territory(*entities)
+        entities_idxs = (cls.hash(name) for name in args)
+        return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
     
 
     def __init__(self, *args: Iterable[Part]) -> None:
@@ -227,7 +252,7 @@ class Territory:
             raise Exception('Tree is not initialized')
         entities = set(args)
         if entities:
-            entities_idxs = [self.hash(e.name) for e in entities]
+            entities_idxs = [e.tree_id for e in entities]
             #  guarantee the Territory is always represented in minimal form
             self.entities = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
         else:
