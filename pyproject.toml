@@ -11,7 +11,8 @@ dependencies = [
   "networkx",
   "python-dotenv",
   "perfect_hash",
-  "more-itertools"
+  "more-itertools",
+  "psycopg2-binary"
 ]
 
 

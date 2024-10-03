@@ -1,34 +1,52 @@
 from __future__ import annotations
+
+import os
 import pickle
+import logging
 
 import rustworkx as rx
 
-
-from perfect_hash import generate_hash, IntSaltHash
-from typing import Iterable, Optional, Callable
-from more_itertools import batched
-from functools import reduce
+from pathlib import Path
 from itertools import chain
+from functools import reduce
+from more_itertools import batched
+from typing import Iterable, Optional, Callable
+from perfect_hash import generate_hash, IntSaltHash
 
 from territories.partitions import Part, Partition, Node
+from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError
 
+logger = logging.getLogger(__name__)
 
 class Territory:
+    """Class to represent territories.
+
+    A Territory object can be any combination of entities, such as municipalities, countries, county, länders, states, etc, as long as it belongs to the DAG of entities.
+    The package guarantee that the representation of a territory will always be efficient.
+    For instance, if I create a `Territory` object with all regions from a country, it will simplify it to only the country object.
+    """
     tree: Optional[rx.DiGraph] = None
     root_index: Optional[int] = None
     perfect_hash_fct: Optional[Callable[[str], int]] = None
+    perfect_hash_params: Optional[tuple] = None
 
 
     @staticmethod
-    def create_hash_function(names: list[str]) -> Callable[[str], int]:
+    def compute_hash_function(names: list[str]) -> tuple:
         # create perfect hash table
         f1, f2, G = generate_hash(names, Hash=IntSaltHash)
-        G = tuple(G) # tuple have slightly faster access time
-
+        G = tuple(G) # tuples have slightly faster access time
         NG = len(G)
         NS = len(f1.salt)
         S1 = tuple(f1.salt)
         S2 = tuple(f2.salt)
+
+        return (G, NG, NS, S1, S2)
+
+
+    @staticmethod
+    def create_hash_function(params: tuple) -> Callable[[str], int]:
+        G, NG, NS, S1, S2 = params
 
         def hash_f(key, T):
             return sum(T[i % NS] * ord(c) for i, c in enumerate(key)) % NG
@@ -68,46 +86,82 @@ class Territory:
         del cls.tree
         cls.tree = None
         cls.perfect_hash_fct = None
+        cls.perfect_hash_params = None
         cls.root_index = None
 
 
     @classmethod
-    def load_tree(cls, file: pickle._ReadableFileobj):
-        cls.reset()
-        cls.tree = pickle.load(file)
-        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
-        names: list[Part] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
-        print(f"there are {len(names)} element in the tree")
+    def load_tree(cls, filepath: Optional[str] = None):
+        """Attempt to load the territorial tree from a file.
 
-        perfect_hash = cls.create_hash_function(names)
+        If no file is provided, it will look on the API_CACHE_DIR env. variable.
+
+        Args:
+            filepath (Optional[str], optional): Path to a file. Defaults to None.
+
+        Raises:
+            MissingTreeCache: If no file is provided and the env. variable is missing
+
+
+        File that can be loaded are the ones created by `Territory.save_tree()`
+        """
+        cls.reset()
+
+        if filepath is None:
+            path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
+        if isinstance(filepath, str):
+            path = filepath
+        try:
+            with open(path, "wb") as file:
+                cls.tree, cls.perfect_hash_params = pickle.load(file)
+                cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
+        except FileNotFoundError:
+            raise MissingTreeCache(f"Tree object was not found at {path}")
+
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
+        names: list[Part] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
 
         for name in names:
-            i = perfect_hash(name)
+            i = cls.hash(name)
             assert name == cls.tree.get_node_data(i).es_code
-
-        cls.perfect_hash_fct = perfect_hash  
 
 
     @classmethod
+    def save_tree(cls, filepath: Optional[str] = None):
+        """Save the territorial tree and the perfect hash function to a file. 
+
+        If no file is provided, it will look for the API_CACHE_DIR env. variable to create a new one.
+
+        Args:
+            filepath (Optional[str], optional): File path to save the tree state to. Defaults to None.
+        """
+        if filepath is None:
+            try:
+                path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
+            except KeyError:
+                logger.warning("failed to save the tree in cache directory. Please set the env variable API_CACHE_DIR")
+                return
+        if isinstance(filepath, str):
+            path = filepath
+        with open(path, "wb") as file:
+            pickle.dump((cls.perfect_hash_params, cls.tree), file)
+       
+
+    @classmethod
     def build_tree(cls, data_stream: Iterable[Node]):
+        """Build the territorial tree from a stream of objects
+
+        Those objects must have attributes id, parent_id, level and label.
+
+        Args:
+            data_stream (Iterable[Node]): An iterable of objects to add on the tree
+        """
         cls.reset()
         
         tree = rx.PyDiGraph()
         mapper = {}
         orphans: list[Node] = []
         batch_size = 1024
-
-        # nodes = tuple(data_stream)
-        # entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in nodes))
-        # for node, tree_idx in zip(nodes, entities_indices):
-        #     if node.level != Partition.COMMUNE: # communes don't have any children
-        #         mapper[node.id] = tree_idx
-        #         object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
-
-        # for node, tree_idx in zip(nodes, entities_indices):
-        #     edges = tuple((mapper[node.parent_id], node.tree_id, None) for node in nodes if node.parent_id)
-        #     tree.add_edges_from(edges)
-
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
@@ -131,13 +185,15 @@ class Territory:
         tree.add_edges_from(edges)
 
         orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
-        print(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
+        if orphans:
+            logger.warning(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
 
 
-        names: list[str] = [tree.get_node_data(i).es_code for i in tree.node_indices()]
-        print(f"there are {len(names)} elements in the tree")
+        names = [tree.get_node_data(i).es_code for i in tree.node_indices()]
+        logger.info(f"There are {len(names)} elements in the tree")
 
-        perfect_hash = cls.create_hash_function(names)
+        cls.perfect_hash_params = cls.compute_hash_function(names)
+        perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
 
         for name in names:
             i = perfect_hash(name)
@@ -146,10 +202,18 @@ class Territory:
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+        cls.save_tree()
 
 
     @classmethod
-    def assign_tree(cls, tree):
+    def assign_tree(cls, tree: rx.PyDiGraph):
+        """DEPRECATED. Do not use this method. It's only purpose is for quick and asy tests.
+
+        Directly assign a tree to the class.
+
+        Args:
+            tree (rx.PyDiGraph): Tree of `territories.Part` objects
+        """
         cls.reset()
 
         elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
@@ -157,7 +221,9 @@ class Territory:
             object.__setattr__(e, 'tree_id', i)
 
         names = [e.name for e in elements]
-        perfect_hash = cls.create_hash_function(names)
+        cls.perfect_hash_params = cls.compute_hash_function(names)
+        perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
+
         for name in names:
             i = perfect_hash(name)
             assert name == tree.get_node_data(i).name
@@ -169,25 +235,25 @@ class Territory:
 
     @classmethod
     def hash(cls, name: str) -> int:
+        """Return the tree indice of an object given its name
+
+        Args:
+            name (str): Name of the object. Currently the ElasticSearch name (like COM:2894)
+
+        Returns:
+            int: Indice of the object on the tree (`tree.get_node_data(i)`)
+        """
         return cls.perfect_hash_fct(name)
 
 
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
-        # b in a
-        return (a == b) or (a in rx.ancestors(tree, b))
+        return (a == b) or (a in rx.ancestors(tree, b)) # b in a
 
 
     @classmethod
     def minimize(cls, node: int, items: Iterable[int]) -> set[int]:
-        """evaluate complexity of this method
-
-        Args:
-            node (Entity): _description_
-            items (Iterable[Entity]): _description_
-
-        Returns:
-            set[Entity]: _description_
+        """Make sure the representation of a Territory is always minimal.
         """
         if len(items) == 0:
             return set()
@@ -211,12 +277,28 @@ class Territory:
     
 
     @classmethod
-    def union(csl, *others):
+    def union(csl, *others: Iterable[Territory | Part]) -> Territory:
+        """Returns the union of given elements as a new Territory object
+
+        Args:
+            Any number of `territories.Territory` or `territories.Part` objects
+
+        Returns:
+            Territory: A new Territory object containing all elements
+        """
         return reduce(lambda x, y: x + y, iter(others))
 
 
     @classmethod
-    def intersection(csl, *others):
+    def intersection(csl, *others: Iterable[Territory | Part]) -> Territory:
+        """Returns the intersection of given elements as a new Territory object
+
+        Args:
+            Any number of `territories.Territory` or `territories.Part` objects
+
+        Returns:
+            Territory: A new Territory object contained by all elements
+        """
         return reduce(lambda x, y: x & y, iter(others))
 
 
@@ -242,14 +324,39 @@ class Territory:
 
 
     @classmethod
-    def from_name(cls, *args: Iterable[str]):
+    def from_name(cls, *args: Iterable[str]) -> Territory:
+        """Create a new Territory object from names
+        Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
+        Raises:
+            NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
+
+        Returns:
+            Territory: Territory object with territories associated with the given names.
+
+        exemple :
+        ```python
+        Territory.from_name('COM:01044', 'COM:01149')
+        >>> Douvres|Billiat
+        ```
+        """
         entities_idxs = (cls.hash(name) for name in args)
-        return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
-    
+        try:
+            return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
+        except (OverflowError, IndexError):
+            raise NotOnTreeError("One or several elements where not found on territorial tree")
+
 
     def __init__(self, *args: Iterable[Part]) -> None:
+        """Create a Territory instance.
+
+        A Territory is composed of one or several Part, that represents elements on the territorial tree.
+        All territories instances share a reference to the territorial tree.
+
+        Raises:
+            MissingTreeException: You can't build Territory instances if the territorial tree has not been initialized.
+        """
         if self.tree is None:
-            raise Exception('Tree is not initialized')
+            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities = set(args)
         if entities:
             entities_idxs = [e.tree_id for e in entities]
@@ -273,7 +380,6 @@ class Territory:
     
 
     def is_contained(self, other: Territory) -> bool:
-        print(self, other)
         if self == other:
             return True
         for entity in self.entities:
@@ -336,4 +442,9 @@ class Territory:
 
 
     def to_es_filter(self) -> list[str]:
+        """Return the filter list to append to an ElasticSearch query to filter by this territory. 
+
+        Returns:
+            list[str]: Something like `[{"term" : {"tu_zone" : "DEP:69"}}, {"term" : {"tu_zone" : "COM:75023"}}]`
+        """
         return [{"term" : {"tu_zone" : e.es_code}} for e in self.entities]

@@ -13,6 +13,7 @@ class Partition(Enum):
     COUNTRY = 3
 
 
+
 @dataclass(frozen=True)
 class Node:
     id: str
@@ -26,6 +27,8 @@ class Node:
 
 @dataclass(frozen=True)
 class Part:
+    """A known territory, such as a city, a departement or a region.
+    """
     name: str
     atomic: bool = True
     partition_type: Partition = Partition.COMMUNE
