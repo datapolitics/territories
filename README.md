@@ -45,7 +45,7 @@ from territories import build_tree_from_db
 build_tree_from_db()
 ```
 
-This function will read the TU table, and create a territory tree out of it, with all its 35099 elements. It only takes a few seconds btw.
+This function will read the TU table, and create a territory tree out of it, with all its 35099 elements. It only takes a few seconds btw. (it takes 20s to construct the perfect hash function to go from es_code -> node in the tree)
 
 ```python
 def build_tree_from_db():
