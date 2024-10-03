@@ -1,4 +1,4 @@
-name: 'Run Unittest'
+name: Run Tests
 
 on:
   workflow_dispatch:
@@ -32,9 +32,6 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install .
-
-      - name: Checks
-        run: pip list
 
       - name: Test
         run: pytest

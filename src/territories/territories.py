@@ -1,4 +1,5 @@
 from __future__ import annotations
+import pickle
 
 import rustworkx as rx
 
@@ -72,32 +73,58 @@ class Territory:
 
 
     @classmethod
+    def load_tree(cls, file: pickle._ReadableFileobj):
+        cls.reset()
+        cls.tree = pickle.load(file)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
+
+
+    @classmethod
     def build_tree(cls, data_stream: Iterable[Node]):
         cls.reset()
         
         tree = rx.PyDiGraph()
         mapper = {}
-        batch_size = 64
+        orphans: list[Part] = []
+        batch_size = 1024
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
             for node, tree_idx in zip(batch, entities_indices):
-                mapper[node.id] = tree_idx
+                if node.level != Partition.COMMUNE: # communes don't have any children
+                    mapper[node.id] = tree_idx
                 object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
 
-            edges = tuple((mapper[node.parent_id], tree_id, None) for node, tree_id in zip(batch, entities_indices) if node.parent_id)
+            edges = []
+            for node, tree_id in zip(batch, entities_indices):
+                if node.parent_id is None:
+                    pass # root node
+                if node.parent_id in mapper:
+                    edges.append((mapper[node.parent_id], tree_id, None))
+                else:
+                    object.__setattr__(node, 'tree_id', tree_id)
+                    orphans.append(node)
             tree.add_edges_from(edges)
 
-        elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
-        names = [e.es_code for e in elements]
-        perfect_hash = cls.create_hash_function(names)
 
-        for name in names:
-            i = perfect_hash(name)
-            assert name == tree.get_node_data(i).es_code
+        edges = tuple((mapper[node.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        tree.add_edges_from(edges)
+
+        orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+        print(f"{len(orphans)} elements where not added to the tree because they have no parents")
+
+
+        names: list[Part] = [tree.get_node_data(i).es_code for i in tree.node_indices()]
+        print(f"there are {len(names)} element in the tree")
+
+        # perfect_hash = cls.create_hash_function(names)
+
+        # for name in names:
+        #     i = perfect_hash(name)
+        #     assert name == tree.get_node_data(i).es_code
 
         cls.tree = tree
-        cls.perfect_hash_fct = perfect_hash  
+        # cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
 

@@ -1,1 +1,2 @@
 from territories.territories import Territory
+from territories.build_tree import build_tree_from_db

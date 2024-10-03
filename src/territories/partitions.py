@@ -20,6 +20,7 @@ class Node:
     level: str
     parent_id: Optional[str] = None
     postal_code: Optional[str] = None
+    tree_id: Optional[int] = None
 
 
 
