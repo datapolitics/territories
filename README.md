@@ -35,11 +35,30 @@ tree = nx.DiGraph([
     (metropole, lyon),
 ])
 
-
 Territory.assign_tree(tree)
 ```
 
-Exemple of a potential usage of such a package.
+But it can be done as simply as :
+```python
+from territories import build_tree_from_db
+
+build_tree_from_db()
+```
+
+This function will read the TU table, and create a territory tree out of it, with all its 35099 elements. It only takes a few seconds btw.
+
+```python
+def build_tree_from_db():
+    with create_connection("crawling") as cnx:
+        data_stream = (Node(
+            id=e[0],
+            level=e[1],
+            label=e[2],
+            parent_id=e[3]) for e in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id']))
+        Territory.build_tree(data_stream)
+```
+
+## Exemple of a potential usage of such a package.
 
 ```python
 # es code are received from the UI, for instance
@@ -59,6 +78,7 @@ for article in articles:
 query = {"ids" : {
     "values" : ids
     }}
+
 query['bool']['should'].extend(topic_territory.to_es_query())
 
 documents = HArticle.search(using=target.es, index=target.index)\
@@ -79,7 +99,18 @@ I used [this](https://py-pkgs.org/01-introduction) website as the main ressource
 
 ## Tests
 
-run pytest
+The tests checks the behavior of the package. You can change whatever you want internaly as long as the tests passes.
+
+```sh
+$ pip install -r requirements-dev.txt
+$ pip install .
+$ pytest
+
+>>> tests/test_interface.py .....   [ 45%]
+>>> tests/test_operators ......     [100%]
+>>> 11 passed in 0.14s 
+```
+
 
 ## Deployment
 

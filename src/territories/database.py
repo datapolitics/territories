@@ -8,10 +8,11 @@ from contextlib import contextmanager
 
 load_dotenv()
 
-user = os.environ["DB_USER"]
-pswd = os.environ["DB_PSWD"]
-port = os.environ["DB_PORT"]
-host = os.environ["DB_HOST"]
+user = os.environ.get("DB_USER")
+pswd = os.environ.get("DB_PSWD")
+port = os.environ.get("DB_PORT")
+host = os.environ.get("DB_HOST")
+
 
 @contextmanager
 def create_connection(database: str):
@@ -26,6 +27,7 @@ def create_connection(database: str):
         yield connection
     finally:
         connection.close()
+
 
 @contextmanager
 def borrow_connection(connection):
