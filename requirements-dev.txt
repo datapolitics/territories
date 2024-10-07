@@ -1,6 +1,6 @@
 rustworkx
 python-dotenv
-perfect_hash
+perfect_hash==0.4.3
 more-itertools~=10.5.0
 psycopg2-binary
 

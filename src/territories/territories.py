@@ -277,7 +277,7 @@ class Territory:
     
 
     @classmethod
-    def union(csl, *others: Iterable[Territory | Part]) -> Territory:
+    def union(cls, *others: Iterable[Territory | Part]) -> Territory:
         """Returns the union of given elements as a new Territory object
 
         Args:
@@ -290,7 +290,7 @@ class Territory:
 
 
     @classmethod
-    def intersection(csl, *others: Iterable[Territory | Part]) -> Territory:
+    def intersection(cls, *others: Iterable[Territory | Part]) -> Territory:
         """Returns the intersection of given elements as a new Territory object
 
         Args:
@@ -300,6 +300,48 @@ class Territory:
             Territory: A new Territory object contained by all elements
         """
         return reduce(lambda x, y: x & y, iter(others))
+
+
+    @classmethod
+    def LCA(cls, *others: Iterable[Territory | Part]) -> Territory:
+        """Return the lowest common ancestor of the given territorial units.
+        If Territory objects are given, it will use their corresponding territorial units.
+
+        Returns:
+            Territory: A territory associated with a single territorial unit
+        """
+        others = set.union(*({e} if isinstance(e, Part) else e.entities for e in others))
+        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
+        match len(common_ancestors):
+            case 0:
+                return Territory()
+            case 1:
+                return Territory(cls.tree.get_node_data(common_ancestors.pop()))
+            case _:
+                v = next(iter(common_ancestors))
+
+        while True:
+            successor = None
+            for w in cls.tree.successor_indices(v):
+                if w in common_ancestors:
+                    successor = w
+                    break
+            if successor is None:
+                return Territory(cls.tree.get_node_data(v))
+            v = successor
+
+
+    @classmethod
+    def all_ancestors(cls, *others: Iterable[Territory | Part]) -> set[Part]:
+        """Return a set of all ancestors of every territorial unit of this territory.
+        If Territory objects are given, it will use their corresponding territorial units.
+
+        Returns:
+            set[Part]: The union of all ancestors of every territorial unit given as input.
+        """
+        others = set.union(*({e} if isinstance(e, Part) else e.entities for e in others))
+        ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
+        return {cls.tree.get_node_data(i) for i in ancestors}
 
 
     @classmethod
@@ -448,3 +490,22 @@ class Territory:
             list[str]: Something like `[{"term" : {"tu_zone" : "DEP:69"}}, {"term" : {"tu_zone" : "COM:75023"}}]`
         """
         return [{"term" : {"tu_zone" : e.es_code}} for e in self.entities]
+    
+
+    def lowest_common_ancestor(self) -> Territory:
+        """Return the lowest common ancestor of the territorial units of this territory.
+
+        Returns:
+            Territory: A territory associated with a single territorial unit
+        """
+        return self.LCA(*self.entities)
+
+
+    def ancestors(self) -> set[Part]:
+        """Return a set of all ancestors of every territorial unit of this territory.
+
+        Returns:
+            set[Part]: The union of all ancestors of every territorial unit of the territory.
+        """
+        ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
+        return {self.tree.get_node_data(i) for i in ancestors}
