@@ -5,12 +5,12 @@ on:
     workflows: ["Run Tests"]  # Name of the first workflow
     types:
       - completed
-  workflow_dispatch:
   push:
     branches:
       - main
   pull_request:
-
+    branches:
+      - main
 permissions:
   contents: read
 

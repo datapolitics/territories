@@ -21,7 +21,7 @@ At startup, you need to initialize a tree of all known entities. Ths can be done
 
 ```python
 from territories import Territory, MissingTreeCache
-from territories.database import create_connection, steam_tu_table
+from territories.database import create_connection, stream_tu_table
 
 try:
     Territory.load_tree()
@@ -43,6 +43,13 @@ The `build_tree()` function will read the TU table, and create a territory tree 
 ```python
 # es code are received from the UI, for instance
 topic_territory = Territory.from_es_codes("COM:234", "COM:943", "DEP:23")
+
+
+# lowest common ancestor of the territorial units
+lca = topic_territory.lowest_common_ancestor()
+
+# all ancestors of the territorial units
+all_ancestors = topic_territory.ancestors()
 
 # union of the territories
 bu_teritory = Territory.union(*(topic.territory for topic in bu))
