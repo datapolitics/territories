@@ -28,8 +28,6 @@ try:
 except MissingTreeCache:
     with create_connection("crawling") as cnx:
         Territory.build_tree(data_stream=stream_tu_table(cnx))
-
-build_tree_from_db()
 ```
 
 The `build_tree()` function will read the TU table, and create a territory tree out of it, with all its 35099 elements

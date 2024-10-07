@@ -112,8 +112,8 @@ class Territory:
         if isinstance(filepath, str):
             path = filepath
         try:
-            with open(path, "wb") as file:
-                cls.tree, cls.perfect_hash_params = pickle.load(file)
+            with open(path, "rb") as file:
+                cls.perfect_hash_params, cls.tree = pickle.load(file)
                 cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
         except FileNotFoundError:
             raise MissingTreeCache(f"Tree object was not found at {path}")
