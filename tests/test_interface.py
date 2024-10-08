@@ -14,11 +14,11 @@ sté = TerritorialUnit("Saint Etienne")
 
 metropole = TerritorialUnit("Grand Lyon", False, Partition.DEP)
 
-sud = TerritorialUnit("Sud", False, Partition.REGION)
-idf = TerritorialUnit("Île-de-France", False, Partition.REGION)
+sud = TerritorialUnit("Sud", False, Partition.REG)
+idf = TerritorialUnit("Île-de-France", False, Partition.REG)
 rhone = TerritorialUnit("Rhône", False, Partition.DEP)
 
-france = TerritorialUnit("France", False, Partition.COUNTRY)
+france = TerritorialUnit("France", False, Partition.CNTRY)
 
 
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)

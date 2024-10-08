@@ -65,9 +65,9 @@ class Territory:
             case "DEP":
                 partition = Partition.DEP
             case "REG":
-                partition = Partition.REGION
+                partition = Partition.REG
             case "CNTRY":
-                partition = Partition.COUNTRY
+                partition = Partition.CNTRY
             case _:
                 partition = None
 
