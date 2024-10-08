@@ -112,7 +112,10 @@ class Territory:
         cls.reset()
 
         if filepath is None:
-            path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
+            cache_dir = os.environ.get("API_CACHE_DIR")
+            if cache_dir is None:
+                raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR env. variable")
+            path = Path(cache_dir, "territorial_tree_state.pickle")
         if isinstance(filepath, str):
             path = filepath
         try:
@@ -216,7 +219,7 @@ class Territory:
         Directly assign a tree to the class.
 
         Args:
-            tree (rx.PyDiGraph): Tree of `territories.Part` objects
+            tree (rx.PyDiGraph): Tree of `territories.TerritorialUnit` objects
         """
         cls.reset()
 
@@ -285,7 +288,7 @@ class Territory:
         """Returns the union of given elements as a new Territory object
 
         Args:
-            Any number of `territories.Territory` or `territories.Part` objects
+            Any number of `territories.Territory` or `territories.TerritorialUnit` objects
 
         Returns:
             Territory: A new Territory object containing all elements
@@ -298,7 +301,7 @@ class Territory:
         """Returns the intersection of given elements as a new Territory object
 
         Args:
-            Any number of `territories.Territory` or `territories.Part` objects
+            Any number of `territories.Territory` or `territories.TerritorialUnit` objects
 
         Returns:
             Territory: A new Territory object contained by all elements
@@ -342,7 +345,7 @@ class Territory:
         If Territory objects are given, it will use their corresponding territorial units.
 
         Returns:
-            set[Part]: The union of all ancestors of every territorial unit given as input.
+            set[TerritorialUnit]: The union of all ancestors of every territorial unit given as input.
         """
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
         ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
@@ -396,7 +399,7 @@ class Territory:
     def __init__(self, *args: Iterable[TerritorialUnit]) -> None:
         """Create a Territory instance.
 
-        A Territory is composed of one or several Part, that represents elements on the territorial tree.
+        A Territory is composed of one or several TerritorialUnit, that represents elements on the territorial tree.
         All territories instances share a reference to the territorial tree.
 
         Raises:
@@ -511,7 +514,7 @@ class Territory:
         """Return a set of all ancestors of every territorial unit of this territory.
 
         Returns:
-            set[Part]: The union of all ancestors of every territorial unit of the territory.
+            set[TerritorialUnit]: The union of all ancestors of every territorial unit of the territory.
         """
         ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
         return {self.tree.get_node_data(i) for i in ancestors}
