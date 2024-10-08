@@ -155,13 +155,16 @@ class Territory:
        
 
     @classmethod
-    def build_tree(cls, data_stream: Iterable[Node]):
-        """Build the territorial tree from a stream of objects
+    def build_tree(cls, data_stream: Iterable[Node], save_tree = True, filepath: Optional[str] = None):
+        """Build the territorial tree from a stream of objects.
+        You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
-        Those objects must have attributes id, parent_id, level and label.
+        The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
 
         Args:
-            data_stream (Iterable[Node]): An iterable of objects to add on the tree
+            data_stream (Iterable[Node]): An iterable of objects to add on the tree.
+            save_tree (bool, optional): Save to disk the constructed tree. Defaults to True.
+            filepath (Optional[str], optional): File path to save the tree state to. If not provided, API_CACHE_DIR env. var. will be used. Defaults to None.
         """
         cls.reset()
         
@@ -209,7 +212,8 @@ class Territory:
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
-        cls.save_tree()
+        if save_tree:
+            cls.save_tree(filepath=filepath)
 
 
     @classmethod
