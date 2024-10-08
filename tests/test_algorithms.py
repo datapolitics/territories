@@ -75,6 +75,7 @@ def test_lca():
 
     assert Territory(sud) == Territory.LCA(lyon, marseille)
     assert Territory(france) == Territory.LCA(lyon, Territory(marseille, paris))
+    assert Territory(sud) == Territory.LCA(rhone)
 
 
 def test_ancestors():
@@ -84,6 +85,9 @@ def test_ancestors():
     assert b.ancestors() == set()
     assert c.ancestors() == {rhone, sud, france}
     assert d.ancestors() == {rhone, sud, france}
+
+    assert c.ancestors(include_itself=True) == {rhone, sud, france, idf, metropole}
+    assert d.ancestors(include_itself=True) == {rhone, sud, france, metropole, marseille}
 
     assert Territory.all_ancestors(paris, marseille) == {sud, idf, france}
     assert Territory.all_ancestors(paris, Territory(villeurbane, sté)) == {metropole, rhone, sud, idf, france}
