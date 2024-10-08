@@ -1,0 +1,12 @@
+CNTRY:France; null; France; CNTRY
+REG:Sud; CNTRY:France; Sud; REG
+REG:idf; CNTRY:France; île-de-france; REG
+DEP:Rhone; REG:Sud; Rhône; DEP
+DEP:metropole; REG:Sud; Grand Lyon; DEP
+COM:Pantin; REG:idf; Pantin; COM
+COM:Nogent; REG:idf; Nogent; COM
+COM:Paris; REG:idf; Paris; COM
+COM:sté; DEP:Rhone; Saint Étienne; COM
+COM:Lyon; DEP:metropole; Lyon; COM
+COM:Villeurbane; DEP:metropole; Villeurbane; COM
+COM:Marseille; REG:Sud; Marseille; COM
