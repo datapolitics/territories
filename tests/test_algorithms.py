@@ -16,11 +16,11 @@ sté = TerritorialUnit("Saint Etienne")
 
 metropole = TerritorialUnit("Grand Lyon", False, Partition.DEP)
 
-sud = TerritorialUnit("Sud", False, Partition.REGION)
-idf = TerritorialUnit("Île-de-France", False, Partition.REGION)
+sud = TerritorialUnit("Sud", False, Partition.REG)
+idf = TerritorialUnit("Île-de-France", False, Partition.REG)
 rhone = TerritorialUnit("Rhône", False, Partition.DEP)
 
-france = TerritorialUnit("France", False, Partition.COUNTRY)
+france = TerritorialUnit("France", False, Partition.CNTRY)
 
 
 
@@ -75,6 +75,7 @@ def test_lca():
 
     assert Territory(sud) == Territory.LCA(lyon, marseille)
     assert Territory(france) == Territory.LCA(lyon, Territory(marseille, paris))
+    assert Territory(sud) == Territory.LCA(rhone)
 
 
 def test_ancestors():
@@ -84,6 +85,9 @@ def test_ancestors():
     assert b.ancestors() == set()
     assert c.ancestors() == {rhone, sud, france}
     assert d.ancestors() == {rhone, sud, france}
+
+    assert c.ancestors(include_itself=True) == {rhone, sud, france, idf, metropole}
+    assert d.ancestors(include_itself=True) == {rhone, sud, france, metropole, marseille}
 
     assert Territory.all_ancestors(paris, marseille) == {sud, idf, france}
     assert Territory.all_ancestors(paris, Territory(villeurbane, sté)) == {metropole, rhone, sud, idf, france}

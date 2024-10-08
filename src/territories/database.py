@@ -6,17 +6,13 @@ from typing import Iterable, Optional
 from contextlib import contextmanager
 
 from territories.partitions import Node
+from urllib.parse import urlparse
 
 load_dotenv()
 
-user = os.environ.get("DB_USER")
-pswd = os.environ.get("DB_PSWD")
-port = os.environ.get("DB_PORT")
-host = os.environ.get("DB_HOST")
-
 
 @contextmanager
-def create_connection(database: str):
+def create_connection(database: str, connection_url:str=None):
     """Yield a connection to a database.
     You need to following env. variables to use this function :
     ```
@@ -27,17 +23,30 @@ def create_connection(database: str):
     ```
     Args:
         database (str): The name of the database you want to connect to.
+        connection_url (Optional[str]): The URL to connect to the db, as postgresql://foo@localhost:5432/bar
 
     Yields:
         A psycopg2 connection object
     """
+    if connection_url:
+        result = urlparse(connection_url)
+        username = result.username
+        password = result.password
+        database = result.path[1:]
+        hostname = result.hostname
+        port = result.port
+    else:
+        username = os.environ.get("DB_USER")
+        password = os.environ.get("DB_PSWD")
+        port = os.environ.get("DB_PORT")
+        hostname = os.environ.get("DB_HOST")
     connection = psycopg2.connect(
-        user=user,
-        password=pswd,
-        host=host,
-        port=port,
-        database=database
-        )
+        database=database,
+        user=username,
+        password=password,
+        host=hostname,
+        port=port
+    )
     try:
         yield connection
     finally:

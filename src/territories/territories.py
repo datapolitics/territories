@@ -65,9 +65,9 @@ class Territory:
             case "DEP":
                 partition = Partition.DEP
             case "REG":
-                partition = Partition.REGION
+                partition = Partition.REG
             case "CNTRY":
-                partition = Partition.COUNTRY
+                partition = Partition.CNTRY
             case _:
                 partition = None
 
@@ -514,11 +514,17 @@ class Territory:
         return self.LCA(*self.entities)
 
 
-    def ancestors(self) -> set[TerritorialUnit]:
+    def ancestors(self, include_itself: bool = False) -> set[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit of this territory.
+
+        Args:
+            include_itself (bool, optional): Wether to include or not the node in its ancestors. Defaults to False.
 
         Returns:
             set[TerritorialUnit]: The union of all ancestors of every territorial unit of the territory.
         """
         ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
-        return {self.tree.get_node_data(i) for i in ancestors}
+        res = {self.tree.get_node_data(i) for i in ancestors}
+        if include_itself:
+            res = res | self.entities
+        return res

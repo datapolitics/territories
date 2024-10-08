@@ -9,9 +9,11 @@ from dataclasses import dataclass, field
 class Partition(Enum):
     COM = 0
     DEP = 1
-    REGION = 2
-    COUNTRY = 3
+    REG = 2
+    CNTRY = 3
 
+    def __str__(self) -> str:
+        return self.name
 
 
 @dataclass(frozen=True)
