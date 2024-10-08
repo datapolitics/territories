@@ -5,7 +5,10 @@ on:
     branches:
       - main
 
-  pull_request:
+  workflow_run:
+    workflows: ["Run Tests"]
+    types:
+      - completed
     branches:
       - main
 
@@ -14,7 +17,6 @@ permissions:
 
 jobs:
   release-build:
-    if: github.event.workflow_run.conclusion == 'success'  # Run only if the first workflow succeeded
     runs-on: ubuntu-latest
 
     steps:
