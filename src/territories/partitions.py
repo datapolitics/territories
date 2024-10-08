@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 
 class Partition(Enum):
-    COMMUNE = 0
+    COM = 0
     DEP = 1
     REGION = 2
     COUNTRY = 3
@@ -26,13 +26,14 @@ class Node:
 
 
 @dataclass(frozen=True)
-class Part:
+class TerritorialUnit:
     """A known territory, such as a city, a departement or a region.
     """
     name: str
     atomic: bool = True
-    partition_type: Partition = Partition.COMMUNE
+    partition_type: Partition = Partition.COM
     es_code: Optional[str] = None
+    postal_code: Optional[str] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
 

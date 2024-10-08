@@ -3,24 +3,24 @@ import rustworkx as rx
 from itertools import product
 
 from territories import Territory
-from territories.partitions import Part, Partition
+from territories.partitions import TerritorialUnit, Partition
 
 
-lyon = Part("Lyon")
-marseille = Part("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
-paris = Part("Paris")
-nogent = Part("Nogent")
-pantin = Part("Pantin")
-villeurbane = Part("Villeurbane")
-sté = Part("Saint Etienne")
+lyon = TerritorialUnit("Lyon")
+marseille = TerritorialUnit("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
+paris = TerritorialUnit("Paris")
+nogent = TerritorialUnit("Nogent")
+pantin = TerritorialUnit("Pantin")
+villeurbane = TerritorialUnit("Villeurbane")
+sté = TerritorialUnit("Saint Etienne")
 
-metropole = Part("Grand Lyon", False, Partition.DEP)
+metropole = TerritorialUnit("Grand Lyon", False, Partition.DEP)
 
-sud = Part("Sud", False, Partition.REGION)
-idf = Part("Île-de-France", False, Partition.REGION)
-rhone = Part("Rhône", False, Partition.DEP)
+sud = TerritorialUnit("Sud", False, Partition.REGION)
+idf = TerritorialUnit("Île-de-France", False, Partition.REGION)
+rhone = TerritorialUnit("Rhône", False, Partition.DEP)
 
-france = Part("France", False, Partition.COUNTRY)
+france = TerritorialUnit("France", False, Partition.COUNTRY)
 
 
 
