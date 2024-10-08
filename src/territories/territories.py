@@ -13,7 +13,7 @@ from more_itertools import batched
 from typing import Iterable, Optional, Callable
 from perfect_hash import generate_hash, IntSaltHash
 
-from territories.partitions import Part, Partition, Node
+from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError
 
 logger = logging.getLogger(__name__)
@@ -58,10 +58,10 @@ class Territory:
 
 
     @staticmethod
-    def to_part(node: Node) -> Part:
+    def to_part(node: Node) -> TerritorialUnit:
         match node.level:
             case "COM":
-                partition = Partition.COMMUNE
+                partition = Partition.COM
             case "DEP":
                 partition = Partition.DEP
             case "REG":
@@ -71,10 +71,14 @@ class Territory:
             case _:
                 partition = None
 
-        return Part(
+        atomic = partition == Partition.COM
+
+        return TerritorialUnit(
             name=node.label,
+            atomic=atomic,
             es_code=node.id,
-            partition_type=partition
+            partition_type=partition,
+            postal_code=getattr(node, "postal_code", None)
         )
 
 
@@ -108,7 +112,10 @@ class Territory:
         cls.reset()
 
         if filepath is None:
-            path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
+            cache_dir = os.environ.get("API_CACHE_DIR")
+            if cache_dir is None:
+                raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR env. variable")
+            path = Path(cache_dir, "territorial_tree_state.pickle")
         if isinstance(filepath, str):
             path = filepath
         try:
@@ -119,7 +126,7 @@ class Territory:
             raise MissingTreeCache(f"Tree object was not found at {path}")
 
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
-        names: list[Part] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
+        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
 
         for name in names:
             i = cls.hash(name)
@@ -148,13 +155,16 @@ class Territory:
        
 
     @classmethod
-    def build_tree(cls, data_stream: Iterable[Node]):
-        """Build the territorial tree from a stream of objects
+    def build_tree(cls, data_stream: Iterable[Node], save_tree = True, filepath: Optional[str] = None):
+        """Build the territorial tree from a stream of objects.
+        You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
-        Those objects must have attributes id, parent_id, level and label.
+        The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
 
         Args:
-            data_stream (Iterable[Node]): An iterable of objects to add on the tree
+            data_stream (Iterable[Node]): An iterable of objects to add on the tree.
+            save_tree (bool, optional): Save to disk the constructed tree. Defaults to True.
+            filepath (Optional[str], optional): File path to save the tree state to. If not provided, API_CACHE_DIR env. var. will be used. Defaults to None.
         """
         cls.reset()
         
@@ -166,7 +176,7 @@ class Territory:
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
             for node, tree_idx in zip(batch, entities_indices):
-                if node.level != Partition.COMMUNE: # communes don't have any children
+                if node.level != Partition.COM: # communes don't have any children
                     mapper[node.id] = tree_idx
                 object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
 
@@ -202,21 +212,22 @@ class Territory:
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
-        cls.save_tree()
+        if save_tree:
+            cls.save_tree(filepath=filepath)
 
 
     @classmethod
     def assign_tree(cls, tree: rx.PyDiGraph):
-        """DEPRECATED. Do not use this method. It's only purpose is for quick and asy tests.
+        """DEPRECATED. Do not use this method. Its only purpose is for quick and easy tests.
 
         Directly assign a tree to the class.
 
         Args:
-            tree (rx.PyDiGraph): Tree of `territories.Part` objects
+            tree (rx.PyDiGraph): Tree of `territories.TerritorialUnit` objects
         """
         cls.reset()
 
-        elements: list[Part] = [tree.get_node_data(i) for i in tree.node_indices()]
+        elements: list[TerritorialUnit] = [tree.get_node_data(i) for i in tree.node_indices()]
         for i, e in enumerate(elements):
             object.__setattr__(e, 'tree_id', i)
 
@@ -277,11 +288,11 @@ class Territory:
     
 
     @classmethod
-    def union(cls, *others: Iterable[Territory | Part]) -> Territory:
+    def union(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the union of given elements as a new Territory object
 
         Args:
-            Any number of `territories.Territory` or `territories.Part` objects
+            Any number of `territories.Territory` or `territories.TerritorialUnit` objects
 
         Returns:
             Territory: A new Territory object containing all elements
@@ -290,11 +301,11 @@ class Territory:
 
 
     @classmethod
-    def intersection(cls, *others: Iterable[Territory | Part]) -> Territory:
+    def intersection(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the intersection of given elements as a new Territory object
 
         Args:
-            Any number of `territories.Territory` or `territories.Part` objects
+            Any number of `territories.Territory` or `territories.TerritorialUnit` objects
 
         Returns:
             Territory: A new Territory object contained by all elements
@@ -303,14 +314,15 @@ class Territory:
 
 
     @classmethod
-    def LCA(cls, *others: Iterable[Territory | Part]) -> Territory:
+    def LCA(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
         """Return the lowest common ancestor of the given territorial units.
         If Territory objects are given, it will use their corresponding territorial units.
 
+        Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
         Returns:
             Territory: A territory associated with a single territorial unit
         """
-        others = set.union(*({e} if isinstance(e, Part) else e.entities for e in others))
+        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
         common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         match len(common_ancestors):
             case 0:
@@ -318,34 +330,34 @@ class Territory:
             case 1:
                 return Territory(cls.tree.get_node_data(common_ancestors.pop()))
             case _:
-                v = next(iter(common_ancestors))
-
+                ancestor = next(iter(common_ancestors))
+        # search the lowest node of the tree in common ancestors
         while True:
             successor = None
-            for w in cls.tree.successor_indices(v):
-                if w in common_ancestors:
-                    successor = w
+            for child in cls.tree.successor_indices(ancestor):
+                if child in common_ancestors:
+                    successor = child
                     break
             if successor is None:
-                return Territory(cls.tree.get_node_data(v))
-            v = successor
+                return Territory(cls.tree.get_node_data(ancestor))
+            ancestor = successor
 
 
     @classmethod
-    def all_ancestors(cls, *others: Iterable[Territory | Part]) -> set[Part]:
+    def all_ancestors(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit of this territory.
         If Territory objects are given, it will use their corresponding territorial units.
 
         Returns:
-            set[Part]: The union of all ancestors of every territorial unit given as input.
+            set[TerritorialUnit]: The union of all ancestors of every territorial unit given as input.
         """
-        others = set.union(*({e} if isinstance(e, Part) else e.entities for e in others))
+        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
         ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
 
 
     @classmethod
-    def _sub(cls, a: Part, b: Part) -> set[Part]:
+    def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return set()
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
@@ -355,7 +367,7 @@ class Territory:
     
 
     @classmethod
-    def _and(cls, a: Part, b: Part) -> set[Part]:
+    def _and(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return {a}
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id): # if a in b
@@ -388,10 +400,10 @@ class Territory:
             raise NotOnTreeError("One or several elements where not found on territorial tree")
 
 
-    def __init__(self, *args: Iterable[Part]) -> None:
+    def __init__(self, *args: Iterable[TerritorialUnit]) -> None:
         """Create a Territory instance.
 
-        A Territory is composed of one or several Part, that represents elements on the territorial tree.
+        A Territory is composed of one or several TerritorialUnit, that represents elements on the territorial tree.
         All territories instances share a reference to the territorial tree.
 
         Raises:
@@ -431,8 +443,8 @@ class Territory:
         return True
     
 
-    def __contains__(self, other: Territory | Part) -> bool:
-        if isinstance(other, Part):
+    def __contains__(self, other: Territory | TerritorialUnit) -> bool:
+        if isinstance(other, TerritorialUnit):
             ancestors = rx.ancestors(self.tree, other.tree_id) | {other.tree_id}
             return any(child.tree_id in ancestors for child in self.entities)
         return other.is_contained(self)
@@ -442,12 +454,12 @@ class Territory:
         pass
 
 
-    def __or__(self, other: Territory | Part) -> Territory:
+    def __or__(self, other: Territory | TerritorialUnit) -> Territory:
         if not self.entities:
             entities = tuple()
         else:
             entities = self.entities
-        if isinstance(other, Part):
+        if isinstance(other, TerritorialUnit):
             return Territory(*chain(entities, [other]))
         if other.entities is not None:
             return Territory(*chain(entities, other.entities))
@@ -455,8 +467,8 @@ class Territory:
     
 
 
-    def __and__(self, other: Territory | Part) -> Territory:
-        if isinstance(other, Part):
+    def __and__(self, other: Territory | TerritorialUnit) -> Territory:
+        if isinstance(other, TerritorialUnit):
             return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
             return Territory()
@@ -466,8 +478,8 @@ class Territory:
         return Territory.union(*(self & child for child in other.entities))
      
 
-    def __sub__(self, other: Territory | Part) -> Territory:
-        if isinstance(other, Part):
+    def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
+        if isinstance(other, TerritorialUnit):
             return Territory(*chain(*(self._sub(child, other) for child in self.entities)))
         if (not other.entities) or (not self.entities):
             return self
@@ -495,17 +507,18 @@ class Territory:
     def lowest_common_ancestor(self) -> Territory:
         """Return the lowest common ancestor of the territorial units of this territory.
 
+        Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
         Returns:
             Territory: A territory associated with a single territorial unit
         """
         return self.LCA(*self.entities)
 
 
-    def ancestors(self) -> set[Part]:
+    def ancestors(self) -> set[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit of this territory.
 
         Returns:
-            set[Part]: The union of all ancestors of every territorial unit of the territory.
+            set[TerritorialUnit]: The union of all ancestors of every territorial unit of the territory.
         """
         ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
         return {self.tree.get_node_data(i) for i in ancestors}

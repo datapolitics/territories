@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.0.4"
+version = "0.1.0"
 authors = [{ name="Timo", email="timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
@@ -8,10 +8,10 @@ requires-python = ">=3.10"
 
 
 dependencies = [
-  "networkx",
+  "rustworkx>=0.15.1",
   "python-dotenv",
-  "perfect_hash",
-  "more-itertools",
+  "perfect_hash==0.4.3",
+  "more-itertools~=10.5.0",
   "psycopg2-binary"
 ]
 
