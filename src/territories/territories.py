@@ -9,6 +9,7 @@ import rustworkx as rx
 from pathlib import Path
 from itertools import chain
 from functools import reduce
+from collections import namedtuple
 from more_itertools import batched
 from typing import Iterable, Optional, Callable
 from perfect_hash import generate_hash, IntSaltHash
@@ -179,6 +180,7 @@ class Territory:
         mapper = {}
         orphans: list[Node] = []
         batch_size = 1024
+        OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
@@ -193,8 +195,17 @@ class Territory:
                     edges.append((mapper[node.parent_id], tree_idx, None))
                 else:
                     if node.parent_id: # do not append root node to orphans
-                        object.__setattr__(node, 'tree_id', tree_idx)
-                        orphans.append(node)
+                        # object.__setattr__(node, 'tree_id', tree_idx)
+                        # this is a lot more expensive than updating the node object
+                        # but we have no guarantee that it is mutable (can be tuple)
+                        orphan = OrphanNode(
+                            id=node.id,
+                            parent_id=node.parent_id,
+                            label=node.label,
+                            level=node.level,
+                            tree_id=tree_idx
+                            )
+                        orphans.append(orphan)
             tree.add_edges_from(edges)
 
 
