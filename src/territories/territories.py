@@ -59,19 +59,26 @@ class Territory:
 
     @staticmethod
     def to_part(node: Node) -> TerritorialUnit:
-        match node.level:
-            case "COM":
+        atomic = False
+        match (node.level, node.id):
+            case "ARR", _:
+                partition = Partition.ARR
+                atomic = True
+            case "COM", comm_id:
                 partition = Partition.COM
-            case "DEP":
+                try:
+                    atomic = comm_id.split(':')[1][:2] not in ('69', '75', '13')
+                except Exception:
+                    pass
+            case "DEP", _:
                 partition = Partition.DEP
-            case "REG":
+            case "REG", _:
                 partition = Partition.REG
-            case "CNTRY":
+            case "CNTRY", _:
                 partition = Partition.CNTRY
             case _:
                 partition = None
 
-        atomic = partition == Partition.COM
 
         return TerritorialUnit(
             name=node.label,
@@ -397,7 +404,7 @@ class Territory:
         try:
             return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
         except (OverflowError, IndexError):
-            raise NotOnTreeError("One or several elements where not found on territorial tree")
+            raise NotOnTreeError("One or several elements where not found in territorial tree")
 
 
     def __init__(self, *args: Iterable[TerritorialUnit]) -> None:

@@ -87,8 +87,6 @@ def read_stream(
     else:
         where = ''
     req = f"SELECT {elements} FROM {table} {where};"
-    # print(req)
-    # print(values)
     cursor.itersize = batch_size
     cursor.execute(req, values)
     return cursor
