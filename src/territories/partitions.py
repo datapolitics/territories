@@ -7,10 +7,11 @@ from dataclasses import dataclass, field
 
 
 class Partition(Enum):
-    COM = 0
-    DEP = 1
-    REG = 2
-    CNTRY = 3
+    ARR = 0
+    COM = 1
+    DEP = 2
+    REG = 3
+    CNTRY = 4
 
     def __str__(self) -> str:
         return self.name

@@ -9,6 +9,7 @@ import rustworkx as rx
 from pathlib import Path
 from itertools import chain
 from functools import reduce
+from collections import namedtuple
 from more_itertools import batched
 from typing import Iterable, Optional, Callable
 from perfect_hash import generate_hash, IntSaltHash
@@ -59,19 +60,26 @@ class Territory:
 
     @staticmethod
     def to_part(node: Node) -> TerritorialUnit:
-        match node.level:
-            case "COM":
+        atomic = False
+        match (node.level, node.id):
+            case "ARR", _:
+                partition = Partition.ARR
+                atomic = True
+            case "COM", comm_id:
                 partition = Partition.COM
-            case "DEP":
+                try:
+                    atomic = comm_id.split(':')[1][:2] not in ('69', '75', '13')
+                except Exception:
+                    pass
+            case "DEP", _:
                 partition = Partition.DEP
-            case "REG":
+            case "REG", _:
                 partition = Partition.REG
-            case "CNTRY":
+            case "CNTRY", _:
                 partition = Partition.CNTRY
             case _:
                 partition = None
 
-        atomic = partition == Partition.COM
 
         return TerritorialUnit(
             name=node.label,
@@ -172,6 +180,7 @@ class Territory:
         mapper = {}
         orphans: list[Node] = []
         batch_size = 1024
+        OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
@@ -186,8 +195,17 @@ class Territory:
                     edges.append((mapper[node.parent_id], tree_idx, None))
                 else:
                     if node.parent_id: # do not append root node to orphans
-                        object.__setattr__(node, 'tree_id', tree_idx)
-                        orphans.append(node)
+                        # object.__setattr__(node, 'tree_id', tree_idx)
+                        # this is a lot more expensive than updating the node object
+                        # but we have no guarantee that it is mutable (can be tuple)
+                        orphan = OrphanNode(
+                            id=node.id,
+                            parent_id=node.parent_id,
+                            label=node.label,
+                            level=node.level,
+                            tree_id=tree_idx
+                            )
+                        orphans.append(orphan)
             tree.add_edges_from(edges)
 
 
@@ -397,7 +415,7 @@ class Territory:
         try:
             return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
         except (OverflowError, IndexError):
-            raise NotOnTreeError("One or several elements where not found on territorial tree")
+            raise NotOnTreeError("One or several elements where not found in territorial tree")
 
 
     def __init__(self, *args: Iterable[TerritorialUnit]) -> None:
