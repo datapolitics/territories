@@ -8,3 +8,7 @@ class MissingTreeCache(Exception):
 
 class NotOnTreeError(Exception):
     pass
+
+
+class EmptyTerritoryError(Exception):
+    pass

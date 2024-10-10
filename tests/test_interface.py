@@ -5,7 +5,7 @@ from territories.partitions import TerritorialUnit, Partition, Node
 
 
 lyon = TerritorialUnit("Lyon")
-marseille = TerritorialUnit("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
+marseille = TerritorialUnit("Marseille", tu_id="COM:2909") # you can specify an ElasticSearch code
 paris = TerritorialUnit("Paris")
 nogent = TerritorialUnit("Nogent")
 pantin = TerritorialUnit("Pantin")
@@ -70,7 +70,7 @@ def test_creation():
 
 def test_from_es():
     # Territory.assign_tree(tree)
-    new = Territory.from_name("Pantin", "Rhône")
+    new = Territory.from_names("Pantin", "Rhône")
     assert new == Territory(pantin, rhone)
 
 
