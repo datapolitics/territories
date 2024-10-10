@@ -84,7 +84,7 @@ class Territory:
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
-            es_code=node.id,
+            tu_id=node.id,
             partition_type=partition,
             postal_code=getattr(node, "postal_code", None)
         )
@@ -134,11 +134,11 @@ class Territory:
             raise MissingTreeCache(f"Tree object was not found at {path}")
 
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
-        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).es_code for i in cls.tree.node_indices()]
+        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
 
         for name in names:
             i = cls.hash(name)
-            assert name == cls.tree.get_node_data(i).es_code
+            assert name == cls.tree.get_node_data(i).tu_id
 
 
     @classmethod
@@ -219,7 +219,7 @@ class Territory:
             logger.warning(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
 
 
-        names = [tree.get_node_data(i).es_code for i in tree.node_indices()]
+        names = [tree.get_node_data(i).tu_id for i in tree.node_indices()]
         logger.info(f"There are {len(names)} elements in the tree")
 
         cls.perfect_hash_params = cls.compute_hash_function(names)
@@ -227,7 +227,7 @@ class Territory:
 
         for name in names:
             i = perfect_hash(name)
-            assert name == tree.get_node_data(i).es_code
+            assert name == tree.get_node_data(i).tu_id
 
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash  
@@ -275,6 +275,20 @@ class Territory:
             int: Indice of the object on the tree (`tree.get_node_data(i)`)
         """
         return cls.perfect_hash_fct(name)
+
+
+    @classmethod
+    def successors(cls, tu_id: str) -> list[TerritorialUnit]:
+        """Returns the successors of a territorial unit in the territorial tree
+
+        Args:
+            tu_id (str): a unique id for a TerritorialUnit (like **DEP:69**)
+
+        Returns:
+            list[TerritorialUnit]: list of TerritorialUnit objects
+        """
+        node_id = cls.perfect_hash_fct(tu_id)
+        return cls.tree.successors(node_id)
 
 
     @staticmethod
@@ -402,7 +416,30 @@ class Territory:
 
 
     @classmethod
-    def from_name(cls, *args: Iterable[str]) -> Territory:
+    def from_name(cls, tu_id: str) -> TerritorialUnit:
+        """Return a TerritorialUnit object from its unique id, like **COM:2894** or **DEP:69** 😏.
+
+                Raises:
+            NotOnTreeError: Raise an exception if the id is not on the territorial tree.
+
+        Returns:
+            Territory: TerritorialUnit object.
+
+        exemple :
+        ```python
+        Territory.from_name('COM:01044')
+        >>> Douvres
+        ```
+        """
+        try:
+            tu_id = cls.hash(tu_id)
+            return cls.tree.get_node_data(tu_id)
+        except (OverflowError, IndexError):
+            raise NotOnTreeError("One or several elements where not found in territorial tree")
+
+
+    @classmethod
+    def from_names(cls, *args: Iterable[str]) -> Territory:
         """Create a new Territory object from names
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
         Raises:
@@ -413,7 +450,7 @@ class Territory:
 
         exemple :
         ```python
-        Territory.from_name('COM:01044', 'COM:01149')
+        Territory.from_names('COM:01044', 'COM:01149')
         >>> Douvres|Billiat
         ```
         """
@@ -439,9 +476,9 @@ class Territory:
         if entities:
             entities_idxs = [e.tree_id for e in entities]
             #  guarantee the Territory is always represented in minimal form
-            self.entities = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
+            self.entities: set[TerritorialUnit] = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
         else:
-            self.entities = set()
+            self.entities: set[TerritorialUnit] = set()
 
 
     def __eq__(self, value: Territory) -> bool:
@@ -525,7 +562,7 @@ class Territory:
         Returns:
             list[str]: Something like `[{"term" : {"tu_zone" : "DEP:69"}}, {"term" : {"tu_zone" : "COM:75023"}}]`
         """
-        return [{"term" : {"tu_zone" : e.es_code}} for e in self.entities]
+        return [{"term" : {"tu_zone" : e.tu_id}} for e in self.entities]
     
 
     def lowest_common_ancestor(self) -> Territory:

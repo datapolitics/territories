@@ -7,7 +7,7 @@ from territories.partitions import TerritorialUnit, Partition
 
 
 lyon = TerritorialUnit("Lyon")
-marseille = TerritorialUnit("Marseille", es_code="COM:2909") # you can specify an ElasticSearch code
+marseille = TerritorialUnit("Marseille", tu_id="COM:2909") # you can specify an ElasticSearch code
 paris = TerritorialUnit("Paris")
 nogent = TerritorialUnit("Nogent")
 pantin = TerritorialUnit("Pantin")

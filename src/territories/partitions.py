@@ -3,7 +3,7 @@ import rustworkx as rx
 from enum import Enum
 from typing import Optional
 from functools import reduce
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 
 class Partition(Enum):
@@ -35,7 +35,7 @@ class TerritorialUnit:
     name: str
     atomic: bool = True
     partition_type: Partition = Partition.COM
-    es_code: Optional[str] = None
+    tu_id: Optional[str] = None
     postal_code: Optional[str] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
@@ -58,3 +58,7 @@ class TerritorialUnit:
         if self.is_disjoint(other):
             return None
         return reduce(lambda x, y: x | y, [other & child for child in self.entities])
+    
+
+    def to_dict(self):
+        return asdict(self)
