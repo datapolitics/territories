@@ -15,7 +15,7 @@ from typing import Iterable, Optional, Callable
 from perfect_hash import generate_hash, IntSaltHash
 
 from territories.partitions import TerritorialUnit, Partition, Node
-from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError
+from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +196,10 @@ class Territory:
                 else:
                     if node.parent_id: # do not append root node to orphans
                         # object.__setattr__(node, 'tree_id', tree_idx)
+                        # orphans.append(node)
+
                         # this is a lot more expensive than updating the node object
-                        # but we have no guarantee that it is mutable (can be tuple)
+                        # but we have no guarantee that it is mutable (can be a tuple)
                         orphan = OrphanNode(
                             id=node.id,
                             parent_id=node.parent_id,
@@ -340,6 +342,8 @@ class Territory:
         Returns:
             Territory: A territory associated with a single territorial unit
         """
+        if not others:
+            raise EmptyTerritoryError("An empty territory has no ancestors")
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
         common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         match len(common_ancestors):
@@ -369,6 +373,8 @@ class Territory:
         Returns:
             set[TerritorialUnit]: The union of all ancestors of every territorial unit given as input.
         """
+        if not others:
+            raise EmptyTerritoryError("An empty territory has no ancestors")
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
         ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
@@ -541,6 +547,8 @@ class Territory:
         Returns:
             set[TerritorialUnit]: The union of all ancestors of every territorial unit of the territory.
         """
+        if not self.entities:
+            raise EmptyTerritoryError("An empty territory has no ancestors")
         ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
