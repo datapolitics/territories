@@ -53,6 +53,9 @@ jobs:
 
       - name: Publish release distributions to PyPI
         run: |
-          python3 -m pip install --upgrade twine
+          sudo apt update
+          sudo apt install pipx
+          pipx ensurepath
+          pipx install --upgrade twine
           ls -la
           python3 -m twine upload --repository-url http://pypi.hedwige.fr:8080  dist/*
