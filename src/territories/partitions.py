@@ -1,3 +1,5 @@
+import json_fix
+
 import rustworkx as rx
 
 from enum import Enum
@@ -14,6 +16,9 @@ class Partition(Enum):
     CNTRY = 4
 
     def __str__(self) -> str:
+        return self.name
+    
+    def __json__(self):
         return self.name
 
 
@@ -62,3 +67,9 @@ class TerritorialUnit:
 
     def to_dict(self):
         return asdict(self)
+    
+
+    def __json__(self):
+        dict_repr = asdict(self)
+        dict_repr.pop('tree_id')
+        return dict_repr

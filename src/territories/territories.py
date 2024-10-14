@@ -278,16 +278,23 @@ class Territory:
 
 
     @classmethod
-    def successors(cls, tu_id: str) -> list[TerritorialUnit]:
+    def successors(cls, tu: TerritorialUnit | str) -> list[TerritorialUnit]:
         """Returns the successors of a territorial unit in the territorial tree
 
         Args:
-            tu_id (str): a unique id for a TerritorialUnit (like **DEP:69**)
+            tu (TerritorialUnit | str): A TerritorialUnit or a string. If a strign, it must ba a unique id for a TerritorialUnit (like **DEP:69**).
+
+        Raises:
+            NotOnTreeError: Raise an exception if the id is not on the territorial tree.
 
         Returns:
-            list[TerritorialUnit]: list of TerritorialUnit objects
+            list[TerritorialUnit]: list of TerritorialUnit objects that are children of the given TerritorialUnit.
         """
-        node_id = cls.perfect_hash_fct(tu_id)
+        if isinstance(tu, str):
+            node_id = cls.perfect_hash_fct(tu)
+        else:
+            assert isinstance(tu, TerritorialUnit)
+            node_id = tu.tree_id
         return cls.tree.successors(node_id)
 
 
@@ -353,12 +360,13 @@ class Territory:
         If Territory objects are given, it will use their corresponding territorial units.
 
         Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
+
         Returns:
             Territory: A territory associated with a single territorial unit
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
+        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         match len(common_ancestors):
             case 0:
@@ -381,19 +389,34 @@ class Territory:
 
     @classmethod
     def all_ancestors(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
-        """Return a set of all ancestors of every territorial unit of this territory.
+        """Return a set of all ancestors of every territorial unit or territory.
         If Territory objects are given, it will use their corresponding territorial units.
 
         Returns:
-            set[TerritorialUnit]: The union of all ancestors of every territorial unit given as input.
+            set[TerritorialUnit]: The union of all ancestors of every territorial units given as input.
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.entities for e in others))
+        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
 
 
+    @classmethod
+    def all_descendants(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
+        """Return a set of all descendants of every territorial unit ro territory.
+        If Territory objects are given, it will use their corresponding territorial units.
+
+        Returns:
+            set[TerritorialUnit]: The union of all descendants of every territorial units given as input.
+        """
+        if not others:
+            raise EmptyTerritoryError("An empty territory has no ancestors")
+        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
+        ancestors  = set.union(*(rx.descendants(cls.tree, e.tree_id) for e in others))
+        return {cls.tree.get_node_data(i) for i in ancestors}
+    
+    
     @classmethod
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
@@ -419,7 +442,7 @@ class Territory:
     def from_name(cls, tu_id: str) -> TerritorialUnit:
         """Return a TerritorialUnit object from its unique id, like **COM:2894** or **DEP:69** 😏.
 
-                Raises:
+        Raises:
             NotOnTreeError: Raise an exception if the id is not on the territorial tree.
 
         Returns:
@@ -472,34 +495,34 @@ class Territory:
         """
         if self.tree is None:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
-        entities = set(args)
-        if entities:
-            entities_idxs = [e.tree_id for e in entities]
+        territorial_units = set(args)
+        if territorial_units:
+            entities_idxs = [e.tree_id for e in territorial_units]
             #  guarantee the Territory is always represented in minimal form
-            self.entities: set[TerritorialUnit] = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
+            self.territorial_units: set[TerritorialUnit] = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
         else:
-            self.entities: set[TerritorialUnit] = set()
+            self.territorial_units: set[TerritorialUnit] = set()
 
 
     def __eq__(self, value: Territory) -> bool:
         # should also check for equality of ids
         # since some entities share the same territory but are not equal
         # ex : Parlement and ADEME both occupy France, yet are not the same entities
-        return self.entities == value.entities
+        return self.territorial_units == value.territorial_units
 
 
     def __add__(self, other: Territory) -> Territory:
         return Territory(
-            *(self.entities | other.entities)
+            *(self.territorial_units | other.territorial_units)
         )
     
 
     def is_contained(self, other: Territory) -> bool:
         if self == other:
             return True
-        for entity in self.entities:
+        for entity in self.territorial_units:
             ancestors = rx.ancestors(self.tree, entity.tree_id) | {entity.tree_id}
-            if not any(other_entity.tree_id in ancestors for other_entity in other.entities):
+            if not any(other_entity.tree_id in ancestors for other_entity in other.territorial_units):
                 return False
         return True
     
@@ -507,7 +530,7 @@ class Territory:
     def __contains__(self, other: Territory | TerritorialUnit) -> bool:
         if isinstance(other, TerritorialUnit):
             ancestors = rx.ancestors(self.tree, other.tree_id) | {other.tree_id}
-            return any(child.tree_id in ancestors for child in self.entities)
+            return any(child.tree_id in ancestors for child in self.territorial_units)
         return other.is_contained(self)
     
 
@@ -516,43 +539,43 @@ class Territory:
 
 
     def __or__(self, other: Territory | TerritorialUnit) -> Territory:
-        if not self.entities:
+        if not self.territorial_units:
             entities = tuple()
         else:
-            entities = self.entities
+            entities = self.territorial_units
         if isinstance(other, TerritorialUnit):
             return Territory(*chain(entities, [other]))
-        if other.entities is not None:
-            return Territory(*chain(entities, other.entities))
+        if other.territorial_units is not None:
+            return Territory(*chain(entities, other.territorial_units))
         return self
     
 
 
     def __and__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
-            return  Territory(*chain(*(self._and(child, other) for child in self.entities)))
-        if (not other.entities) or (not self.entities):
+            return  Territory(*chain(*(self._and(child, other) for child in self.territorial_units)))
+        if (not other.territorial_units) or (not self.territorial_units):
             return Territory()
         if self in other:
             return self
 
-        return Territory.union(*(self & child for child in other.entities))
+        return Territory.union(*(self & child for child in other.territorial_units))
      
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
-            return Territory(*chain(*(self._sub(child, other) for child in self.entities)))
-        if (not other.entities) or (not self.entities):
+            return Territory(*chain(*(self._sub(child, other) for child in self.territorial_units)))
+        if (not other.territorial_units) or (not self.territorial_units):
             return self
         if self in other:
             return Territory()
 
-        return Territory.intersection(*(self - child for child in other.entities))
+        return Territory.intersection(*(self - child for child in other.territorial_units))
 
 
     def __repr__(self) -> str:
-        if self.entities:
-            return '|'.join(str(e) for e in self.entities)
+        if self.territorial_units:
+            return '|'.join(str(e) for e in self.territorial_units)
         return '{}'
 
 
@@ -562,7 +585,7 @@ class Territory:
         Returns:
             list[str]: Something like `[{"term" : {"tu_zone" : "DEP:69"}}, {"term" : {"tu_zone" : "COM:75023"}}]`
         """
-        return [{"term" : {"tu_zone" : e.tu_id}} for e in self.entities]
+        return [{"term" : {"tu_zone" : e.tu_id}} for e in self.territorial_units]
     
 
     def lowest_common_ancestor(self) -> Territory:
@@ -572,7 +595,7 @@ class Territory:
         Returns:
             Territory: A territory associated with a single territorial unit
         """
-        return self.LCA(*self.entities)
+        return self.LCA(*self.territorial_units)
 
 
     def ancestors(self, include_itself: bool = False) -> set[TerritorialUnit]:
@@ -584,10 +607,28 @@ class Territory:
         Returns:
             set[TerritorialUnit]: The union of all ancestors of every territorial unit of the territory.
         """
-        if not self.entities:
+        if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.entities))
+        ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
-            res = res | self.entities
+            res = res | self.territorial_units
+        return res
+
+
+    def descendants(self, include_itself: bool = False) -> set[TerritorialUnit]:
+        """Return a set of all descendants of every territorial unit of this territory.
+
+        Args:
+            include_itself (bool, optional): Wether to include or not the node in its descendants. Defaults to False.
+
+        Returns:
+            set[TerritorialUnit]: The union of all descendants of every territorial unit of the territory.
+        """
+        if not self.territorial_units:
+            raise EmptyTerritoryError("An empty territory has no ancestors")
+        ancestors = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
+        res = {self.tree.get_node_data(i) for i in ancestors}
+        if include_itself:
+            res = res | self.territorial_units
         return res
