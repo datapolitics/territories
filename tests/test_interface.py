@@ -117,4 +117,4 @@ def test_build_tree():
         Node(id='COM:Marseille', label='Marseille', level='COM', parent_id="REG:Sud"),
     ]
 
-    Territory.build_tree(nodes)
+    Territory.build_tree(nodes, save_tree=False)
