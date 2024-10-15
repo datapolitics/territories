@@ -504,6 +504,10 @@ class Territory:
             self.territorial_units: set[TerritorialUnit] = set()
 
 
+    def __iter__(self):
+        return iter(self.territorial_units)
+
+
     def __eq__(self, value: Territory) -> bool:
         # should also check for equality of ids
         # since some entities share the same territory but are not equal
