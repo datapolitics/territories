@@ -1,6 +1,8 @@
+import pytest
+
 import rustworkx as rx
 
-from territories import Territory
+from territories import Territory, NotOnTreeError
 from territories.partitions import TerritorialUnit, Partition, Node
 
 
@@ -68,11 +70,25 @@ def test_creation():
     Territory()
 
 
-def test_from_es():
+def test_from_names():
     # Territory.assign_tree(tree)
     new = Territory.from_names("Pantin", "Rhône")
     assert new == Territory(pantin, rhone)
 
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
+        new = Territory.from_names("not exist", "Rhône", "yolo")
+
+    with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
+        new = Territory.from_names("not exist", "Rhône")
+
+def test_from_name():
+    # Territory.assign_tree(tree)
+    new = Territory.from_name("Pantin")
+    assert new == Territory(pantin)
+
+
+    with pytest.raises(NotOnTreeError, match='not exist is not in the territorial tree'):
+        new = Territory.from_name("not exist")
 
 def test_union():
     Territory.assign_tree(tree)

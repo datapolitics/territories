@@ -137,8 +137,7 @@ class Territory:
         names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
 
         for name in names:
-            i = cls.hash(name)
-            assert name == cls.tree.get_node_data(i).tu_id
+            assert name == cls.hash(name).tu_id
 
 
     @classmethod
@@ -225,13 +224,12 @@ class Territory:
         cls.perfect_hash_params = cls.compute_hash_function(names)
         perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
 
-        for name in names:
-            i = perfect_hash(name)
-            assert name == tree.get_node_data(i).tu_id
-
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+
+        for name in names:
+            assert name == cls.hash(name).tu_id
         if save_tree:
             cls.save_tree(filepath=filepath)
 
@@ -250,31 +248,19 @@ class Territory:
         elements: list[TerritorialUnit] = [tree.get_node_data(i) for i in tree.node_indices()]
         for i, e in enumerate(elements):
             object.__setattr__(e, 'tree_id', i)
+            object.__setattr__(e, 'tu_id', e.name)
 
         names = [e.name for e in elements]
         cls.perfect_hash_params = cls.compute_hash_function(names)
         perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
-
-        for name in names:
-            i = perfect_hash(name)
-            assert name == tree.get_node_data(i).name
-
+        
         cls.tree = tree
         cls.perfect_hash_fct = perfect_hash        
+
+        for name in names:
+            assert name == cls.hash(name).name
+
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
-
-
-    @classmethod
-    def hash(cls, name: str) -> int:
-        """Return the tree indice of an object given its name
-
-        Args:
-            name (str): Name of the object. Currently the ElasticSearch name (like COM:2894)
-
-        Returns:
-            int: Indice of the object on the tree (`tree.get_node_data(i)`)
-        """
-        return cls.perfect_hash_fct(name)
 
 
     @classmethod
@@ -439,6 +425,25 @@ class Territory:
 
 
     @classmethod
+    def hash(cls, name: str) -> TerritorialUnit:
+        """Return the tree indice of an object given its name
+
+        Args:
+            name (str): Name of the object. Currently the ElasticSearch name (like COM:2894)
+
+        Returns:
+            TerritorialUnit: Object on the tree (`tree.get_node_data(i)`)
+        """
+        node_id = cls.perfect_hash_fct(name)
+        try:
+            node = cls.tree.get_node_data(node_id)
+            assert node.tu_id == name
+            return node
+        except (OverflowError, IndexError, AssertionError):
+            raise NotOnTreeError(f"{name} is not in the territorial tree")
+
+
+    @classmethod
     def from_name(cls, tu_id: str) -> TerritorialUnit:
         """Return a TerritorialUnit object from its unique id, like **COM:2894** or **DEP:69** 😏.
 
@@ -454,12 +459,8 @@ class Territory:
         >>> Douvres
         ```
         """
-        try:
-            tu_id = cls.hash(tu_id)
-            return cls.tree.get_node_data(tu_id)
-        except (OverflowError, IndexError):
-            raise NotOnTreeError("One or several elements where not found in territorial tree")
-
+        return cls.hash(tu_id)
+            
 
     @classmethod
     def from_names(cls, *args: Iterable[str]) -> Territory:
@@ -479,9 +480,17 @@ class Territory:
         """
         entities_idxs = (cls.hash(name) for name in args)
         try:
-            return Territory(*(cls.tree.get_node_data(i) for i in entities_idxs))
-        except (OverflowError, IndexError):
-            raise NotOnTreeError("One or several elements where not found in territorial tree")
+            return Territory(*entities_idxs)
+        except (NotOnTreeError):
+            wrong_elements = set()
+            for name in args:
+                try:
+                    cls.hash(name)
+                except NotOnTreeError:
+                    wrong_elements.add(name)
+            verb = "where" if len(wrong_elements) > 1 else "was"
+            wrong_elements = ', '.join(str(e) for e in wrong_elements)
+            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
 
 
     def __init__(self, *args: Iterable[TerritorialUnit]) -> None:
@@ -508,11 +517,13 @@ class Territory:
         return iter(self.territorial_units)
 
 
-    def __eq__(self, value: Territory) -> bool:
+    def __eq__(self, other: Territory | TerritorialUnit) -> bool:
         # should also check for equality of ids
         # since some entities share the same territory but are not equal
         # ex : Parlement and ADEME both occupy France, yet are not the same entities
-        return self.territorial_units == value.territorial_units
+        if isinstance(other, TerritorialUnit):
+            return self.territorial_units == {other}
+        return self.territorial_units == other.territorial_units
 
 
     def __add__(self, other: Territory) -> Territory:
@@ -630,9 +641,17 @@ class Territory:
             set[TerritorialUnit]: The union of all descendants of every territorial unit of the territory.
         """
         if not self.territorial_units:
-            raise EmptyTerritoryError("An empty territory has no ancestors")
+            raise EmptyTerritoryError("An empty territory has no descendants")
         ancestors = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
             res = res | self.territorial_units
         return res
+
+
+    def is_empty(self) -> bool:
+        """
+        Returns:
+            bool: Return wether the territory object is an empty territory
+        """
+        return len(self.territorial_units) == 0
