@@ -23,11 +23,13 @@ def create_connection(database: str, connection_url:str=None):
     ```
     Args:
         database (str): The name of the database you want to connect to.
-        connection_url (Optional[str]): The URL to connect to the db, as postgresql://foo@localhost:5432/bar
+        connection_url (Optional[str]): The URL to connect to the db, as postgresql://foo@localhost:5432/bar. Will attempt to read CRAWLING_DB_URL first.
 
     Yields:
         A psycopg2 connection object
     """
+    connection_url = connection_url or os.environ.get("CRAWLING_DB_URL")
+
     if connection_url:
         result = urlparse(connection_url)
         username = result.username
