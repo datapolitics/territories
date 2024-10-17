@@ -89,6 +89,12 @@ def test_intersection():
     assert t == Territory(metropole, idf)
 
 
+def test_iteration():
+    Territory.assign_tree(tree)
+
+    for i in a:
+        assert i in a.territorial_units
+ 
 
 def test_build_tree():
 
@@ -111,4 +117,4 @@ def test_build_tree():
         Node(id='COM:Marseille', label='Marseille', level='COM', parent_id="REG:Sud"),
     ]
 
-    Territory.build_tree(nodes)
+    Territory.build_tree(nodes, save_tree=False)
