@@ -18,6 +18,6 @@ def test_parse_without_error():
         stream = ([Node(*split(x) )for x in lines])
         Territory.build_tree(data_stream=stream, save_tree=False)
 
-    t = Territory.from_name("DEP:69")
-    s = Territory.successors(t)
-    json.dumps(s)
+    t = Territory.from_names("DEP:69")
+    json.dumps(t)
+    json.dumps(t.descendants())
