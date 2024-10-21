@@ -1,4 +1,5 @@
 import pytest
+import gzip
 
 import rustworkx as rx
 
@@ -86,7 +87,6 @@ def test_from_name():
     new = Territory.from_name("Pantin")
     assert new == Territory(pantin)
 
-
     with pytest.raises(NotOnTreeError, match='not exist is not in the territorial tree'):
         new = Territory.from_name("not exist")
 
@@ -134,3 +134,8 @@ def test_build_tree():
     ]
 
     Territory.build_tree(nodes, save_tree=False)
+
+
+def test_load_from_bytes():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))

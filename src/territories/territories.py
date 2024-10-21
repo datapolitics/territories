@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json_fix
+
 
 import os
 import pickle
@@ -100,6 +102,18 @@ class Territory:
         cls.perfect_hash_fct = None
         cls.perfect_hash_params = None
         cls.root_index = None
+
+
+    @classmethod
+    def load_tree_from_bytes(cls, data: bytes):
+        cls.reset()
+        cls.perfect_hash_params, cls.tree = pickle.loads(data)
+        cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
+        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
+
+        for name in names:
+            assert name == cls.hash(name).tu_id
 
 
     @classmethod
@@ -352,6 +366,14 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
+        # not necessary, maybe better performance for small territories
+        # if len(others) == 1:
+        #     node = others[0]
+        #     if isinstance(node, TerritorialUnit) and node.tree_id:
+        #         return cls.tree.predecessors(node.tree_id).pop()
+        #     if isinstance(node, Territory) and len(node.territorial_units) == 1:
+        #         tree_id = next(n.tree_id for n in node.territorial_units)
+        #         return cls.tree.predecessors(tree_id).pop()
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         match len(common_ancestors):
@@ -434,6 +456,8 @@ class Territory:
         Returns:
             TerritorialUnit: Object on the tree (`tree.get_node_data(i)`)
         """
+        if not isinstance(name, str):
+            raise Exception(f"tu_ids are string, you provided a {type(name)}")
         node_id = cls.perfect_hash_fct(name)
         try:
             node = cls.tree.get_node_data(node_id)
@@ -446,6 +470,9 @@ class Territory:
     @classmethod
     def from_name(cls, tu_id: str) -> TerritorialUnit:
         """Return a TerritorialUnit object from its unique id, like **COM:2894** or **DEP:69** 😏.
+
+        ⚠️ YOU SHOULD PROBABLY NOT USE THIS METHOD, USE `from_names()` METHOD INSTEAD !
+        This method returns a TerritorialUnit object, which is not directly linked to the territorial tree.
 
         Raises:
             NotOnTreeError: Raise an exception if the id is not on the territorial tree.
@@ -526,6 +553,10 @@ class Territory:
         return self.territorial_units == other.territorial_units
 
 
+    def __bool__(self):
+        return len(self.territorial_units) != 0
+    
+
     def __add__(self, other: Territory) -> Territory:
         return Territory(
             *(self.territorial_units | other.territorial_units)
@@ -565,7 +596,6 @@ class Territory:
         return self
     
 
-
     def __and__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
             return  Territory(*chain(*(self._and(child, other) for child in self.territorial_units)))
@@ -586,6 +616,10 @@ class Territory:
             return Territory()
 
         return Territory.intersection(*(self - child for child in other.territorial_units))
+
+
+    def __json__(self):
+        return self.territorial_units
 
 
     def __repr__(self) -> str:
@@ -642,8 +676,8 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no descendants")
-        ancestors = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
-        res = {self.tree.get_node_data(i) for i in ancestors}
+        descendants = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
+        res = {self.tree.get_node_data(i) for i in descendants}
         if include_itself:
             res = res | self.territorial_units
         return res
