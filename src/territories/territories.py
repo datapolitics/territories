@@ -105,6 +105,18 @@ class Territory:
 
 
     @classmethod
+    def load_tree_from_bytes(cls, data: bytes):
+        cls.reset()
+        cls.perfect_hash_params, cls.tree = pickle.loads(data)
+        cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
+        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
+
+        for name in names:
+            assert name == cls.hash(name).tu_id
+
+
+    @classmethod
     def load_tree(cls, filepath: Optional[str] = None):
         """Attempt to load the territorial tree from a file.
 
@@ -664,8 +676,8 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no descendants")
-        ancestors = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
-        res = {self.tree.get_node_data(i) for i in ancestors}
+        descendants = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
+        res = {self.tree.get_node_data(i) for i in descendants}
         if include_itself:
             res = res | self.territorial_units
         return res
