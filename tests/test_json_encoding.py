@@ -1,22 +1,12 @@
 import gzip
 import json
-import pickle
 
-from territories import Territory, MissingTreeCache
-from territories.partitions import Node
+from territories import Territory
 
 
 def test_parse_without_error():
-    split = lambda x: (arg if arg != 'null' else None for arg in x[:-1].split('; '))
-
-    try:
-        Territory.load_tree()
-    except MissingTreeCache:
-        with open("docs/tree_large.gzip", "rb") as file:
-            lines = pickle.loads(gzip.decompress(file.read()))
-
-        stream = ([Node(*split(x) )for x in lines])
-        Territory.build_tree(data_stream=stream, save_tree=False)
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     t = Territory.from_names("DEP:69")
     json.dumps(t)

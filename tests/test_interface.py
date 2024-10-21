@@ -136,6 +136,6 @@ def test_build_tree():
     Territory.build_tree(nodes, save_tree=False)
 
 
-def load_from_bytes():
-    with open("territorial_tree_state.gzip", "rb") as file:
+def test_load_from_bytes():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
