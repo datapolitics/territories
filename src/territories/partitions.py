@@ -52,7 +52,7 @@ class TerritorialUnit:
 
 
     def __lt__(self, other: TerritorialUnit) -> bool:
-        return self.partition_type.value < other.partition_type.value
+        return self.partition_type.value >= other.partition_type.value
 
 
     def contains(self, other, tree: rx.PyDiGraph) -> bool:
