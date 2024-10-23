@@ -139,3 +139,14 @@ def test_build_tree():
 def test_load_from_bytes():
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+
+def test_sort_tus():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    names = ("COM:69132", "CNTRY:F", "DEP:69")
+    sorted_names = ("CNTRY:F", "DEP:69", "COM:69132")
+    tus = [Territory.from_name(name) for name in names]
+    tus.sort()
+    assert tus == [Territory.from_name(name) for name in sorted_names]

@@ -535,9 +535,10 @@ class Territory:
         if territorial_units:
             entities_idxs = [e.tree_id for e in territorial_units]
             #  guarantee the Territory is always represented in minimal form
-            self.territorial_units: set[TerritorialUnit] = {self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)}
+            # territories are immutable
+            self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
-            self.territorial_units: set[TerritorialUnit] = set()
+            self.territorial_units: set[TerritorialUnit] = frozenset()
 
 
     def __iter__(self):
@@ -624,7 +625,7 @@ class Territory:
 
     def __repr__(self) -> str:
         if self.territorial_units:
-            return '|'.join(str(e) for e in self.territorial_units)
+            return '|'.join(str(e) for e in sorted(self.territorial_units, reverse=True))
         return '{}'
 
 

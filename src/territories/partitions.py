@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json_fix
 
 import rustworkx as rx
@@ -47,6 +49,10 @@ class TerritorialUnit:
 
     def __repr__(self) -> str:
         return self.name
+
+
+    def __lt__(self, other: TerritorialUnit) -> bool:
+        return self.partition_type.value >= other.partition_type.value
 
 
     def contains(self, other, tree: rx.PyDiGraph) -> bool:
