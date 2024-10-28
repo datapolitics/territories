@@ -6,21 +6,21 @@ from territories import Territory
 from territories.partitions import TerritorialUnit, Partition
 
 
-lyon = TerritorialUnit("Lyon")
-marseille = TerritorialUnit("Marseille", tu_id="COM:2909") # you can specify an ElasticSearch code
-paris = TerritorialUnit("Paris")
-nogent = TerritorialUnit("Nogent")
-pantin = TerritorialUnit("Pantin")
-villeurbane = TerritorialUnit("Villeurbane")
-sté = TerritorialUnit("Saint Etienne")
+lyon = TerritorialUnit("Lyon", tu_id="Lyon")
+marseille = TerritorialUnit("Marseille", tu_id="Marseille")
+paris = TerritorialUnit("Paris", tu_id="Paris")
+nogent = TerritorialUnit("Nogent", tu_id="Nogent")
+pantin = TerritorialUnit("Pantin", tu_id="Pantin")
+villeurbane = TerritorialUnit("Villeurbane", tu_id="Villeurbane")
+sté = TerritorialUnit("Saint Etienne", tu_id="Etienne")
 
-metropole = TerritorialUnit("Grand Lyon", False, Partition.DEP)
+metropole = TerritorialUnit("Grand Lyon", "metro", False, Partition.DEP)
 
-sud = TerritorialUnit("Sud", False, Partition.REG)
-idf = TerritorialUnit("Île-de-France", False, Partition.REG)
-rhone = TerritorialUnit("Rhône", False, Partition.DEP)
+sud = TerritorialUnit("Sud", "Sud", False, Partition.REG)
+idf = TerritorialUnit("Île-de-France", "idf", False, Partition.REG)
+rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 
-france = TerritorialUnit("France", False, Partition.CNTRY)
+france = TerritorialUnit("France", "France", False, Partition.CNTRY)
 
 
 
