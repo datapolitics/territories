@@ -541,6 +541,11 @@ class Territory:
             self.territorial_units: set[TerritorialUnit] = frozenset()
 
 
+    @property
+    def type(self) -> Partition:
+        return min(self).partition_type
+
+
     def __iter__(self):
         return iter(self.territorial_units)
 
