@@ -65,7 +65,7 @@ f = Territory(idf, marseille, metropole)
 exemples = (a, b, c, d, e, f)
 
 
-def test_eqality():
+def test_equality():
     Territory.assign_tree(tree)
 
     assert b == Territory(france)

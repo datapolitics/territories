@@ -1,8 +1,9 @@
-import pytest
 import gzip
+import pytest
 
 import rustworkx as rx
 
+from random import sample
 from territories import Territory, NotOnTreeError
 from territories.partitions import TerritorialUnit, Partition, Node
 
@@ -73,7 +74,7 @@ def test_creation():
 
 
 def test_from_names():
-    # Territory.assign_tree(tree)
+    Territory.assign_tree(tree)
     new = Territory.from_names("Pantin", "Rhône")
     assert new == Territory(pantin, rhone)
 
@@ -83,8 +84,10 @@ def test_from_names():
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
         new = Territory.from_names("not exist", "Rhône")
 
+
+
 def test_from_name():
-    # Territory.assign_tree(tree)
+    Territory.assign_tree(tree)
     new = Territory.from_name("Pantin")
     assert new == Territory(pantin)
 
@@ -160,3 +163,17 @@ def test_type():
     names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
     ter = Territory.from_names(*names)
     assert ter.type == Partition.CNTRY
+
+
+
+def setup():
+    s = sample(Territory.tree.nodes(), 1000)
+    ter = Territory.from_names(*(ter.tu_id for ter in s))
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.partition_type == Partition.COM]
+    return names, {}
+
+
+def test_creation(benchmark):
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=5)  
