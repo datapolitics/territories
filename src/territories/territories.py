@@ -300,32 +300,65 @@ class Territory:
 
     @staticmethod
     def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
+        # rx.ancestors is at most 3 elements, this should be quiet fast
         return (a == b) or (a in rx.ancestors(tree, b)) # b in a
 
 
     @classmethod
-    def minimize(cls, node: int, items: Iterable[int]) -> set[int]:
+    def minimize(cls, node: int, items: set[int]) -> set[int]:
         """Make sure the representation of a Territory is always minimal.
         """
         if len(items) == 0:
             return set()
         
         if node in items:
+            items.remove(node)
             return {node}
         
+        # 
+        # SLOWEST METHOD
+        # method not looking for parentality
+        # 
+        # children = set(cls.tree.successor_indices(node))
+        # if len(children) == 0:
+        #     return set()
+        # if children.issubset(items):
+        #     return {node}
+        # unexplored_nodes = items - children
+        # correct_nodes = items & children
+        # # children - items is guaranteed to be non-empty
+        # gen = (cls.minimize(child, unexplored_nodes) for child in children - items)
+        # union = set.union(*gen) | correct_nodes
+
+
         children = set(cls.tree.successor_indices(node))
-
-        if children == set(items):
+        if len(children) == 0:
+            return set()
+        if children.issubset(items):
+            for child in children:
+                items.remove(child)
             return {node}
 
-        gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        union =  set.union(*gen)
+        correct_nodes = items & children
+        for node in correct_nodes:
+            items.remove(node)
+        if not items:
+            return correct_nodes
+        # this do appear to copy items to iterate on it
+        connected = lambda x: any(x in rx.ancestors(cls.tree, item) for item in items) # compute ancestors A LOT of times (memoization ?)
+        for child in children - correct_nodes:
+            if items:
+                if connected(child):
+                    correct_nodes = correct_nodes | cls.minimize(child, items)
 
-        # no sure I need this
-        if union == children:
-            return {node}
+        # method looking for parentality (3x faster for now)
+        # children = set(cls.tree.successor_indices(node))
+        # if children.issubset(items):
+        #     return {node}
+        # gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
+        # union =  set.union(*gen)
         
-        return union
+        return correct_nodes
     
 
     @classmethod
@@ -533,7 +566,7 @@ class Territory:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         territorial_units = set(args)
         if territorial_units:
-            entities_idxs = [e.tree_id for e in territorial_units]
+            entities_idxs = {e.tree_id for e in territorial_units}
             #  guarantee the Territory is always represented in minimal form
             # territories are immutable
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))

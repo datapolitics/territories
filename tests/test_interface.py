@@ -176,4 +176,4 @@ def setup():
 def test_creation(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_names, setup=setup, rounds=5)  
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=50)  
