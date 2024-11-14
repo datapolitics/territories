@@ -1,27 +1,29 @@
-import pytest
 import gzip
+import pytest
 
 import rustworkx as rx
 
+from random import sample
 from territories import Territory, NotOnTreeError
 from territories.partitions import TerritorialUnit, Partition, Node
 
 
-lyon = TerritorialUnit("Lyon")
-marseille = TerritorialUnit("Marseille", tu_id="COM:2909") # you can specify an ElasticSearch code
-paris = TerritorialUnit("Paris")
-nogent = TerritorialUnit("Nogent")
-pantin = TerritorialUnit("Pantin")
-villeurbane = TerritorialUnit("Villeurbane")
-sté = TerritorialUnit("Saint Etienne")
+lyon = TerritorialUnit("Lyon", tu_id="Lyon")
+marseille = TerritorialUnit("Marseille", tu_id="Marseille")
+paris = TerritorialUnit("Paris", tu_id="Paris")
+nogent = TerritorialUnit("Nogent", tu_id="Nogent")
+pantin = TerritorialUnit("Pantin", tu_id="Pantin")
+villeurbane = TerritorialUnit("Villeurbane", tu_id="Villeurbane")
+sté = TerritorialUnit("Saint Etienne", tu_id="Etienne")
 
-metropole = TerritorialUnit("Grand Lyon", False, Partition.DEP)
+metropole = TerritorialUnit("Grand Lyon", "metro", False, Partition.DEP)
 
-sud = TerritorialUnit("Sud", False, Partition.REG)
-idf = TerritorialUnit("Île-de-France", False, Partition.REG)
-rhone = TerritorialUnit("Rhône", False, Partition.DEP)
+sud = TerritorialUnit("Sud", "Sud", False, Partition.REG)
+idf = TerritorialUnit("Île-de-France", "idf", False, Partition.REG)
+rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 
-france = TerritorialUnit("France", False, Partition.CNTRY)
+france = TerritorialUnit("France", "France", False, Partition.CNTRY)
+
 
 
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
@@ -72,7 +74,7 @@ def test_creation():
 
 
 def test_from_names():
-    # Territory.assign_tree(tree)
+    Territory.assign_tree(tree)
     new = Territory.from_names("Pantin", "Rhône")
     assert new == Territory(pantin, rhone)
 
@@ -82,8 +84,10 @@ def test_from_names():
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
         new = Territory.from_names("not exist", "Rhône")
 
+
+
 def test_from_name():
-    # Territory.assign_tree(tree)
+    Territory.assign_tree(tree)
     new = Territory.from_name("Pantin")
     assert new == Territory(pantin)
 
@@ -145,8 +149,31 @@ def test_sort_tus():
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
-    names = ("COM:69132", "CNTRY:F", "DEP:69")
-    sorted_names = ("CNTRY:F", "DEP:69", "COM:69132")
+    names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
+    sorted_names = ("CNTRY:F", "DEP:69", "DEP:75", "COM:69132")
     tus = [Territory.from_name(name) for name in names]
     tus.sort()
     assert tus == [Territory.from_name(name) for name in sorted_names]
+
+
+def test_type():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
+    ter = Territory.from_names(*names)
+    assert ter.type == Partition.CNTRY
+
+
+
+def setup():
+    s = sample(Territory.tree.nodes(), 1000)
+    ter = Territory.from_names(*(ter.tu_id for ter in s))
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.partition_type == Partition.COM]
+    return names, {}
+
+
+def test_creation(benchmark):
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=5)  

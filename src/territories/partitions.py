@@ -6,7 +6,6 @@ import rustworkx as rx
 
 from enum import Enum
 from typing import Optional
-from functools import reduce
 from dataclasses import dataclass, field, asdict
 
 
@@ -16,12 +15,14 @@ class Partition(Enum):
     DEP = 2
     REG = 3
     CNTRY = 4
+    UE = 5
 
     def __str__(self) -> str:
         return self.name
     
     def __json__(self):
         return self.name
+
 
 
 @dataclass(frozen=True)
@@ -40,9 +41,9 @@ class TerritorialUnit:
     """A known territory, such as a city, a departement or a region.
     """
     name: str
+    tu_id: str
     atomic: bool = True
     partition_type: Partition = Partition.COM
-    tu_id: Optional[str] = None
     postal_code: Optional[str] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
@@ -52,6 +53,8 @@ class TerritorialUnit:
 
 
     def __lt__(self, other: TerritorialUnit) -> bool:
+        if self.partition_type.value == other.partition_type.value:
+            return self.name >= other.name
         return self.partition_type.value >= other.partition_type.value
 
 
@@ -59,16 +62,6 @@ class TerritorialUnit:
         assert self.tree_id
         assert other.tree_id
         return (self == other) or (self.tree_id in rx.ancestors(tree, other.tree_id))
-    
-        
-    def __and__(self, other):
-        if other is None:
-            return None
-        if self in other:
-            return self
-        if self.is_disjoint(other):
-            return None
-        return reduce(lambda x, y: x | y, [other & child for child in self.entities])
     
 
     def to_dict(self):

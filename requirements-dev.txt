@@ -8,6 +8,7 @@ psycopg2-binary
 
 # only for dev
 pytest
+pytest-benchmark
 ipykernel
 build
 setuptools

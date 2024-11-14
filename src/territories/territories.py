@@ -457,7 +457,7 @@ class Territory:
             TerritorialUnit: Object on the tree (`tree.get_node_data(i)`)
         """
         if not isinstance(name, str):
-            raise Exception(f"tu_ids are string, you provided a {type(name)}")
+            raise Exception(f"tu_ids are string, you provided a {type(name).__name__} : {name}")
         node_id = cls.perfect_hash_fct(name)
         try:
             node = cls.tree.get_node_data(node_id)
@@ -539,6 +539,11 @@ class Territory:
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
             self.territorial_units: set[TerritorialUnit] = frozenset()
+
+
+    @property
+    def type(self) -> Partition:
+        return min(self).partition_type
 
 
     def __iter__(self):
