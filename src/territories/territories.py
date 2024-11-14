@@ -10,7 +10,7 @@ import rustworkx as rx
 
 from pathlib import Path
 from itertools import chain
-from functools import reduce
+from functools import lru_cache, reduce
 from collections import namedtuple
 from more_itertools import batched
 from typing import Iterable, Optional, Callable
@@ -299,66 +299,54 @@ class Territory:
 
 
     @staticmethod
-    def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
-        # rx.ancestors is at most 3 elements, this should be quiet fast
-        return (a == b) or (a in rx.ancestors(tree, b)) # b in a
+    @lru_cache(maxsize=256)
+    def _ancestors(tree: rx.PyDiGraph, node: int) -> set[int]:
+        return rx.ancestors(tree, node)
+
+
+    @staticmethod
+    def contains(a, b, tree):
+        return (a == b) or (a in rx.ancestors(tree, b))
 
 
     @classmethod
     def minimize(cls, node: int, items: set[int]) -> set[int]:
         """Make sure the representation of a Territory is always minimal.
         """
-        if len(items) == 0:
-            return set()
-        
-        if node in items:
-            items.remove(node)
-            return {node}
-        
-        # 
-        # SLOWEST METHOD
-        # method not looking for parentality
-        # 
-        # children = set(cls.tree.successor_indices(node))
-        # if len(children) == 0:
+        # if len(items) == 0:
         #     return set()
-        # if children.issubset(items):
+        # if node in items:
         #     return {node}
-        # unexplored_nodes = items - children
-        # correct_nodes = items & children
-        # # children - items is guaranteed to be non-empty
-        # gen = (cls.minimize(child, unexplored_nodes) for child in children - items)
-        # union = set.union(*gen) | correct_nodes
-
-
-        children = set(cls.tree.successor_indices(node))
-        if len(children) == 0:
-            return set()
-        if children.issubset(items):
-            for child in children:
-                items.remove(child)
-            return {node}
-
-        correct_nodes = items & children
-        for node in correct_nodes:
-            items.remove(node)
-        if not items:
-            return correct_nodes
-        # this do appear to copy items to iterate on it
-        connected = lambda x: any(x in rx.ancestors(cls.tree, item) for item in items) # compute ancestors A LOT of times (memoization ?)
-        for child in children - correct_nodes:
-            if items:
-                if connected(child):
-                    correct_nodes = correct_nodes | cls.minimize(child, items)
-
-        # method looking for parentality (3x faster for now)
         # children = set(cls.tree.successor_indices(node))
         # if children.issubset(items):
         #     return {node}
         # gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        # union =  set.union(*gen)
-        
-        return correct_nodes
+        # union = set.union(*gen)
+        # if union == children:
+        #     return {node}
+        # return union
+    
+
+        # best method 
+        if not items:
+            return set()
+        if node in items:
+            return {node}
+        children = set(cls.tree.successor_indices(node))
+        valids = children & items # O(min(children, items))
+        if len(valids) == len(children):
+            return {node}
+        for valid in valids:
+            items.remove(valid)
+        for child in children:
+            if child not in valids and cls.tree.out_degree(child):
+                if any(node in cls._ancestors(cls.tree, item) for item in items):
+                    valids.update(cls.minimize(child, items))
+        if valids == children:
+            return {node}
+        return valids
+
+
     
 
     @classmethod
