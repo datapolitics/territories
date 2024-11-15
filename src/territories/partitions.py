@@ -23,6 +23,26 @@ class Partition(Enum):
     def __json__(self):
         return self.name
 
+    def __lt__(self, other) -> bool:
+        if isinstance(other, Partition):
+            return self.value < other.value
+        return NotImplemented
+
+    def __le__(self, other) -> bool:
+        if isinstance(other, Partition):
+            return self.value <= other.value
+        return NotImplemented
+
+    def __gt__(self, other) -> bool:
+        if isinstance(other, Partition):
+            return self.value > other.value
+        return NotImplemented
+
+    def __ge__(self, other) -> bool:
+        if isinstance(other, Partition):
+            return self.value >= other.value
+        return NotImplemented
+
 
 
 @dataclass(frozen=True)
