@@ -10,7 +10,7 @@ import rustworkx as rx
 
 from pathlib import Path
 from itertools import chain
-from functools import reduce
+from functools import lru_cache, reduce
 from collections import namedtuple
 from more_itertools import batched
 from typing import Iterable, Optional, Callable
@@ -299,33 +299,54 @@ class Territory:
 
 
     @staticmethod
-    def contains(a: int, b: int, tree: rx.PyDiGraph) -> bool:
-        return (a == b) or (a in rx.ancestors(tree, b)) # b in a
+    @lru_cache(maxsize=256)
+    def _ancestors(tree: rx.PyDiGraph, node: int) -> set[int]:
+        return rx.ancestors(tree, node)
+
+
+    @staticmethod
+    def contains(a, b, tree):
+        return (a == b) or (a in rx.ancestors(tree, b))
 
 
     @classmethod
-    def minimize(cls, node: int, items: Iterable[int]) -> set[int]:
+    def minimize(cls, node: int, items: set[int]) -> set[int]:
         """Make sure the representation of a Territory is always minimal.
         """
-        if len(items) == 0:
+        # if len(items) == 0:
+        #     return set()
+        # if node in items:
+        #     return {node}
+        # children = set(cls.tree.successor_indices(node))
+        # if children.issubset(items):
+        #     return {node}
+        # gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
+        # union = set.union(*gen)
+        # if union == children:
+        #     return {node}
+        # return union
+    
+
+        # best method 
+        if not items:
             return set()
-        
         if node in items:
             return {node}
-        
         children = set(cls.tree.successor_indices(node))
-
-        if children == set(items):
+        valids = children & items # O(min(children, items))
+        if len(valids) == len(children):
             return {node}
-
-        gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        union =  set.union(*gen)
-
-        # no sure I need this
-        if union == children:
+        for valid in valids:
+            items.remove(valid)
+        for child in children:
+            if child not in valids and cls.tree.out_degree(child):
+                if any(node in cls._ancestors(cls.tree, item) for item in items):
+                    valids.update(cls.minimize(child, items))
+        if valids == children:
             return {node}
-        
-        return union
+        return valids
+
+
     
 
     @classmethod
@@ -533,7 +554,7 @@ class Territory:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         territorial_units = set(args)
         if territorial_units:
-            entities_idxs = [e.tree_id for e in territorial_units]
+            entities_idxs = {e.tree_id for e in territorial_units}
             #  guarantee the Territory is always represented in minimal form
             # territories are immutable
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
