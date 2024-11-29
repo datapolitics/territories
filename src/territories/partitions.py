@@ -10,12 +10,19 @@ from dataclasses import dataclass, field, asdict
 
 
 class Partition(Enum):
-    ARR = 0
-    COM = 1
-    DEP = 2
-    REG = 3
-    CNTRY = 4
-    UE = 5
+    """Represents the different levels of territorial units.
+    They can be ordered by their respective scales.
+
+    I am not conviced this is a good idea to have an empty partition.
+    Maybe we should force the user to check if the territory is empty before extracting it's level.
+    """
+    EMPTY = 0 # maybe this is not a good idea
+    ARR = 1
+    COM = 2
+    DEP = 3
+    REG = 4
+    CNTRY = 5
+    UE = 6
 
     def __str__(self) -> str:
         return self.name
@@ -52,6 +59,7 @@ class Node:
     level: str
     parent_id: Optional[str] = None
     postal_code: Optional[str] = None
+    inhabitants: Optional[int] = None
     tree_id: Optional[int] = None
 
 
@@ -63,8 +71,9 @@ class TerritorialUnit:
     name: str
     tu_id: str
     atomic: bool = True
-    partition_type: Partition = Partition.COM
+    level: Partition = Partition.COM
     postal_code: Optional[str] = None
+    inhabitants: Optional[int] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
 
@@ -73,9 +82,9 @@ class TerritorialUnit:
 
 
     def __lt__(self, other: TerritorialUnit) -> bool:
-        if self.partition_type.value == other.partition_type.value:
+        if self.level.value == other.level.value:
             return self.name >= other.name
-        return self.partition_type.value >= other.partition_type.value
+        return self.level.value >= other.level.value
 
 
     def contains(self, other, tree: rx.PyDiGraph) -> bool:

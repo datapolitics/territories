@@ -107,7 +107,9 @@ def stream_tu_table(cnx) -> Iterable[Node]:
         id=e[0],
         level=e[1],
         label=e[2],
-        parent_id=e[3]) for e in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id']))
+        parent_id=e[3],
+        inhabitants=e[4]
+        ) for e in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id', 'inhabitants']))
     return data_stream
 
 

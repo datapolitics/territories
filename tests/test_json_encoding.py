@@ -10,7 +10,14 @@ def test_parse_without_error(benchmark):
 
     t = Territory.from_names("DEP:69")
     res = benchmark.pedantic(json.dumps, t, rounds=100)
-    assert json.loads(res) == {"name": "Rhône", "tu_id": "DEP:69", "atomic": False, "partition_type": "DEP", "postal_code": None}
+    assert json.loads(res) == {
+        "name": "Rhône",
+        "tu_id": "DEP:69",
+        "atomic": False,
+        "level": "DEP",
+        "postal_code": None,
+        "inhabitants": 1883437
+    }
 
 
 def test_parse_fast(benchmark):
