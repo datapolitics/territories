@@ -16,3 +16,10 @@ if __name__ == "__main__":
         parent = Territory.tree.get_node_data(parent.pop().tree_id)
         print(f"parent of {arr} is {parent}")
     print(arrs)
+
+
+# save tree to file
+# raw_tree = Territory.save_tree(return_bytes=True)
+
+# with open("full_territorial_tree.gzip", "wb") as file:
+#     file.write(gzip.compress(raw_tree))

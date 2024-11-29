@@ -87,8 +87,9 @@ class Territory:
             name=node.label,
             atomic=atomic,
             tu_id=node.id,
-            partition_type=partition,
-            postal_code=getattr(node, "postal_code", None)
+            level=partition,
+            postal_code=getattr(node, "postal_code", None),
+            inhabitants=getattr(node, "inhabitants", None)
         )
 
 
@@ -155,15 +156,17 @@ class Territory:
 
 
     @classmethod
-    def save_tree(cls, filepath: Optional[str] = None):
+    def save_tree(cls, filepath: Optional[str] = None, return_bytes: bool = False) -> Optional[bytes]:
         """Save the territorial tree and the perfect hash function to a file. 
 
         If no file is provided, it will look for the API_CACHE_DIR env. variable to create a new one.
 
         Args:
             filepath (Optional[str], optional): File path to save the tree state to. Defaults to None.
+            return_bytes (bool, optional): Return the bytes of the saved file. Defaults to False.
         """
-        if filepath is None:
+        path = None
+        if filepath is None and not return_bytes:
             try:
                 path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
             except KeyError:
@@ -171,8 +174,13 @@ class Territory:
                 return
         if isinstance(filepath, str):
             path = filepath
-        with open(path, "wb") as file:
-            pickle.dump((cls.perfect_hash_params, cls.tree), file)
+        if path:
+            with open(path, "wb") as file:
+                pickle.dump((cls.perfect_hash_params, cls.tree), file)
+        if return_bytes:
+            return pickle.dumps((cls.perfect_hash_params, cls.tree))
+        if path is None and not return_bytes:
+            raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
        
 
     @classmethod
@@ -198,7 +206,7 @@ class Territory:
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
             for node, tree_idx in zip(batch, entities_indices):
-                if node.level != Partition.COM: # communes don't have any children
+                if not tree.get_node_data(tree_idx).atomic:
                     mapper[node.id] = tree_idx
                 object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
 
@@ -564,11 +572,17 @@ class Territory:
 
     @property
     def type(self) -> Partition:
-        return min(self).partition_type
+        if self.is_empty():
+            return Partition.EMPTY
+        return min(self).level
 
 
     def __iter__(self):
         return iter(self.territorial_units)
+    
+
+    def __len__(self) -> int:
+        return len(self.territorial_units)
 
 
     def __eq__(self, other: Territory | TerritorialUnit) -> bool:

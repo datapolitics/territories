@@ -4,7 +4,7 @@ import pytest
 import rustworkx as rx
 
 from random import sample
-from territories import Territory, NotOnTreeError
+from territories import Territory, NotOnTreeError, MissingTreeException
 from territories.partitions import TerritorialUnit, Partition, Node
 
 
@@ -69,7 +69,9 @@ exemples = (a, b, c, d, e, f)
 
 
 def test_creation():
-    # Territory.assign_tree(tree)
+    with pytest.raises(MissingTreeException):
+        Territory()
+    Territory.assign_tree(tree)
     Territory()
 
 
@@ -163,13 +165,15 @@ def test_type():
     names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
     ter = Territory.from_names(*names)
     assert ter.type == Partition.CNTRY
+    empty = Territory()
+    assert empty.type == Partition.EMPTY
 
 
 
 def setup():
     s = sample(Territory.tree.nodes(), 1000)
     ter = Territory.from_names(*(ter.tu_id for ter in s))
-    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.partition_type == Partition.COM]
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
     return names, {}
 
 

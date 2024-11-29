@@ -8,7 +8,7 @@ Territory.load_tree()
 s = sample(Territory.tree.nodes(), 1000)
 ter = Territory.from_names(*(ter.tu_id for ter in s))
 
-names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.partition_type == Partition.COM]
+names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
 
 
 with cProfile.Profile() as pr:
