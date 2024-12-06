@@ -104,3 +104,40 @@ $ pytest
 ## Deployment
 
 CI automatically deploy the package when there are push on the main branch. Do not deploy yourself.
+
+
+
+
+
+
+
+## Manuel de gestion de crise
+
+```mermaid
+flowchart TD
+    A[Détection du problème] -->|Attribution du responsable| B{Dignostic}
+    B --> C[Comm client ?]
+    B --> D[Vérification de problèmes connexes]
+    E --> |Porblème résolu ?| H[OK]
+    B --> E[Assignation]
+
+
+```
+
+
+https://excalidraw.com/#json=gDNoiB0Zi1H-EK9DNxjy0,2BE3eSWuH675063oDQeAvw
+
+
+
+## Compte rendu
+
+J'ai l'honneur de vous rendre compte...
+
+Le post-mortem s'est déroulé de la façon suivante
+Un retour sur la façon dont le problème a été découvert (plus ou moins par hasard), et a été remonté à l'équipe. Le manque de réactivité sur le problème a été particulièrement mis en cause.
+
+La cause exacte vient d'une manipulation des DAGs le 20 octobre, et dont les conséquences n'ont pas été détectée le lendemain, date à partir de laquelle l'alerte aurait du être lancée.
+
+Il en est ressorti deux axes majeurs :
+- le besoin d'avoir un dashboard de métriques générales consulté par l'équipe à chaque stand up. Il ne faut pas un système d'alertes qui peuvent se perdre dans un flot d'email, mais instaurer dans la culture de l'équipe de regarder les métriques à chaque stand up pour identifier les tendances générales et toute anomalie.
+- le besoin d'avoir un processus d'urgence clair. Par exemple, prendre la décision de ce qui constitue une emergency  prod, et l'utilisation du canal éponyme.

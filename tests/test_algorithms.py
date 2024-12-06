@@ -68,14 +68,17 @@ def test_lca():
     Territory.assign_tree(tree)
 
     assert sud == a.lowest_common_ancestor()
-    assert france == b.lowest_common_ancestor()
+    assert None == b.lowest_common_ancestor()
     assert france == c.lowest_common_ancestor()
-    assert france == b.lowest_common_ancestor()
-    assert france == c.lowest_common_ancestor()
+    assert sud == d.lowest_common_ancestor()
+    assert france == e.lowest_common_ancestor()
+    assert france == f.lowest_common_ancestor()
+
 
     assert sud == Territory.LCA(lyon, marseille)
     assert france == Territory.LCA(lyon, Territory(marseille, paris))
-    assert rhone == Territory.LCA(rhone)
+    assert rhone != Territory.LCA(rhone)
+    assert sud == Territory.LCA(rhone)
 
 
 def test_ancestors():
