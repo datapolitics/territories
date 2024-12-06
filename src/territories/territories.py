@@ -384,14 +384,14 @@ class Territory:
 
 
     @classmethod
-    def LCA(cls, *others: Iterable[Territory | TerritorialUnit]) -> TerritorialUnit:
+    def LCA(cls, *others: Iterable[Territory | TerritorialUnit]) -> Optional[TerritorialUnit]:
         """Return the lowest common ancestor of the given territorial units.
         If Territory objects are given, it will use their corresponding territorial units.
 
         Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
 
         Returns:
-            TerritorialUnit: A TerritorialUnit object being the lowest common ancestor of every given territorial units.
+            TerritorialUnit | None: A TerritorialUnit object being the lowest common ancestor of every given territorial units. If no common ancestor is found, it will return None.
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
@@ -404,10 +404,11 @@ class Territory:
         #         tree_id = next(n.tree_id for n in node.territorial_units)
         #         return cls.tree.predecessors(tree_id).pop()
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) | {e.tree_id} for e in others))
+        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         match len(common_ancestors):
             case 0:
-                raise EmptyTerritoryError("No common ancestor found")
+                return None
+                # raise EmptyTerritoryError("No common ancestor found")
             case 1:
                 return cls.tree.get_node_data(common_ancestors.pop())
             case _:
@@ -678,12 +679,12 @@ class Territory:
         return [{"term" : {"tu_zone" : e.tu_id}} for e in self.territorial_units]
     
 
-    def lowest_common_ancestor(self) -> TerritorialUnit:
+    def lowest_common_ancestor(self) -> Optional[TerritorialUnit]:
         """Return the lowest common ancestor of the territorial units of this territory.
 
         Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
         Returns:
-            TerritorialUnit: A TerritorialUnit object being the lowest common ancestor of every territorial units of the territory.
+            TerritorialUnit| None: A TerritorialUnit object being the lowest common ancestor of every territorial units of the territory. None if the territory has no parents.
         """
         return self.LCA(*self.territorial_units)
 
