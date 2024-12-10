@@ -71,6 +71,8 @@ exemples = (a, b, c, d, e, f)
 def test_creation():
     with pytest.raises(MissingTreeException):
         Territory()
+    with pytest.raises(MissingTreeException):
+        Territory.from_names("DEP:69")
     Territory.assign_tree(tree)
     Territory()
 
