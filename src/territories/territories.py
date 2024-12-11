@@ -535,6 +535,8 @@ class Territory:
         >>> Douvres|Billiat
         ```
         """
+        if cls.tree is None:
+            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities_idxs = (cls.hash(name) for name in args)
         try:
             return Territory(*entities_idxs)
