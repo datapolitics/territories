@@ -1,6 +1,5 @@
 rustworkx
 python-dotenv
-perfect_hash==0.4.3
 more-itertools~=10.5.0
 json-fix==1.0.0
 # should be optional

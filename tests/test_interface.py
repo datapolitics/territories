@@ -148,6 +148,8 @@ def test_load_from_bytes():
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
+    with pytest.raises(Exception):
+        Territory.load_tree_from_bytes(b"bad data")
 
 def test_sort_tus():
     with open("tests/full_territorial_tree.gzip", "rb") as file:

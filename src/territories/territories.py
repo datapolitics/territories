@@ -10,16 +10,17 @@ import rustworkx as rx
 
 from pathlib import Path
 from itertools import chain
-from functools import lru_cache, reduce
 from collections import namedtuple
 from more_itertools import batched
-from typing import Iterable, Optional, Callable
-from perfect_hash import generate_hash, IntSaltHash
+from typing import Iterable, Optional
+from functools import lru_cache, reduce
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
 
 logger = logging.getLogger(__name__)
+
+CHECKSUM = "current version is A2FH9"
 
 class Territory:
     """Class to represent territories.
@@ -30,35 +31,7 @@ class Territory:
     """
     tree: Optional[rx.DiGraph] = None
     root_index: Optional[int] = None
-    perfect_hash_fct: Optional[Callable[[str], int]] = None
-    perfect_hash_params: Optional[tuple] = None
-
-
-    @staticmethod
-    def compute_hash_function(names: list[str]) -> tuple:
-        # create perfect hash table
-        f1, f2, G = generate_hash(names, Hash=IntSaltHash)
-        G = tuple(G) # tuples have slightly faster access time
-        NG = len(G)
-        NS = len(f1.salt)
-        S1 = tuple(f1.salt)
-        S2 = tuple(f2.salt)
-
-        return (G, NG, NS, S1, S2)
-
-
-    @staticmethod
-    def create_hash_function(params: tuple) -> Callable[[str], int]:
-        G, NG, NS, S1, S2 = params
-
-        def hash_f(key, T):
-            return sum(T[i % NS] * ord(c) for i, c in enumerate(key)) % NG
-
-        def perfect_hash(key):
-            return (G[hash_f(key, S1)] + G[hash_f(key, S2)]) % NG
-
-        return perfect_hash
-
+    name_to_id: dict[str, int] = {}
 
     @staticmethod
     def to_part(node: Node) -> TerritorialUnit:
@@ -100,21 +73,20 @@ class Territory:
         # so first I destroy the reference
         del cls.tree
         cls.tree = None
-        cls.perfect_hash_fct = None
-        cls.perfect_hash_params = None
         cls.root_index = None
+        cls.name_to_id = {}
 
 
     @classmethod
     def load_tree_from_bytes(cls, data: bytes):
         cls.reset()
-        cls.perfect_hash_params, cls.tree = pickle.loads(data)
-        cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
+        try:
+            checksum, cls.name_to_id, cls.tree = pickle.loads(data)
+        except ValueError:
+            raise Exception("The data is not a valid territorial tree.")
+        if checksum != CHECKSUM:
+            raise Exception("The data is not a valid territorial tree.")
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
-        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
-
-        for name in names:
-            assert name == cls.hash(name).tu_id
 
 
     @classmethod
@@ -143,8 +115,12 @@ class Territory:
             path = filepath
         try:
             with open(path, "rb") as file:
-                cls.perfect_hash_params, cls.tree = pickle.load(file)
-                cls.perfect_hash_fct = cls.create_hash_function(cls.perfect_hash_params)
+                try:
+                    checksum, cls.name_to_id, cls.tree = pickle.load(file)
+                except ValueError:
+                    raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
+                if checksum != CHECKSUM:
+                    raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
         except FileNotFoundError:
             raise MissingTreeCache(f"Tree object was not found at {path}")
 
@@ -157,7 +133,7 @@ class Territory:
 
     @classmethod
     def save_tree(cls, filepath: Optional[str] = None, return_bytes: bool = False) -> Optional[bytes]:
-        """Save the territorial tree and the perfect hash function to a file. 
+        """Save the territorial tree and the hashmap to a file. 
 
         If no file is provided, it will look for the API_CACHE_DIR env. variable to create a new one.
 
@@ -176,9 +152,9 @@ class Territory:
             path = filepath
         if path:
             with open(path, "wb") as file:
-                pickle.dump((cls.perfect_hash_params, cls.tree), file)
+                pickle.dump((CHECKSUM, cls.name_to_id, cls.tree), file)
         if return_bytes:
-            return pickle.dumps((cls.perfect_hash_params, cls.tree))
+            return pickle.dumps((CHECKSUM, cls.name_to_id, cls.tree))
         if path is None and not return_bytes:
             raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
        
@@ -240,18 +216,10 @@ class Territory:
             logger.warning(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
 
 
-        names = [tree.get_node_data(i).tu_id for i in tree.node_indices()]
-        logger.info(f"There are {len(names)} elements in the tree")
-
-        cls.perfect_hash_params = cls.compute_hash_function(names)
-        perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
-
+        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
         cls.tree = tree
-        cls.perfect_hash_fct = perfect_hash  
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
-        for name in names:
-            assert name == cls.hash(name).tu_id
         if save_tree:
             cls.save_tree(filepath=filepath)
 
@@ -272,21 +240,13 @@ class Territory:
             object.__setattr__(e, 'tree_id', i)
             object.__setattr__(e, 'tu_id', e.name)
 
-        names = [e.name for e in elements]
-        cls.perfect_hash_params = cls.compute_hash_function(names)
-        perfect_hash = cls.create_hash_function(cls.perfect_hash_params)
-        
+        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
         cls.tree = tree
-        cls.perfect_hash_fct = perfect_hash        
-
-        for name in names:
-            assert name == cls.hash(name).name
-
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
 
     @classmethod
-    def successors(cls, tu: TerritorialUnit | str) -> list[TerritorialUnit]:
+    def successors(cls, tu: TerritorialUnit) -> list[TerritorialUnit]:
         """Returns the successors of a territorial unit in the territorial tree
 
         Args:
@@ -298,12 +258,8 @@ class Territory:
         Returns:
             list[TerritorialUnit]: list of TerritorialUnit objects that are children of the given TerritorialUnit.
         """
-        if isinstance(tu, str):
-            node_id = cls.perfect_hash_fct(tu)
-        else:
-            assert isinstance(tu, TerritorialUnit)
-            node_id = tu.tree_id
-        return cls.tree.successors(node_id)
+        assert isinstance(tu, TerritorialUnit)
+        return cls.tree.successors(tu.tree_id)
 
 
     @staticmethod
@@ -488,12 +444,10 @@ class Territory:
         """
         if not isinstance(name, str):
             raise Exception(f"tu_ids are string, you provided a {type(name).__name__} : {name}")
-        node_id = cls.perfect_hash_fct(name)
         try:
-            node = cls.tree.get_node_data(node_id)
-            assert node.tu_id == name
-            return node
-        except (OverflowError, IndexError, AssertionError):
+            node_id = cls.name_to_id[name]
+            return cls.tree.get_node_data(node_id)
+        except KeyError:
             raise NotOnTreeError(f"{name} is not in the territorial tree")
 
 
