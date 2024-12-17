@@ -1,3 +1,5 @@
+import gzip
+
 from territories import Territory, MissingTreeCache
 from territories.database import create_connection, stream_tu_table
 
@@ -10,7 +12,7 @@ if __name__ == "__main__":
             Territory.build_tree(data_stream=stream_tu_table(cnx))
 
 
-    arrs = [node for node in Territory.tree.nodes() if node.partition_type is None]
+    arrs = [node for node in Territory.tree.nodes() if node.level is None]
     for arr in arrs:
         parent = Territory.tree.predecessors(arr.tree_id)
         parent = Territory.tree.get_node_data(parent.pop().tree_id)
@@ -19,7 +21,7 @@ if __name__ == "__main__":
 
 
 # save tree to file
-# raw_tree = Territory.save_tree(return_bytes=True)
+    raw_tree = Territory.save_tree(return_bytes=True)
 
-# with open("full_territorial_tree.gzip", "wb") as file:
-#     file.write(gzip.compress(raw_tree))
+    with open("full_territorial_tree.gzip", "wb") as file:
+        file.write(gzip.compress(raw_tree))

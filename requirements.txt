@@ -1,5 +1,0 @@
-rustworkx
-python-dotenv
-perfect_hash
-more-itertools~=10.5.0
-json-fix==1.0.0

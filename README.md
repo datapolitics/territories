@@ -32,8 +32,6 @@ except MissingTreeCache:
 
 The `build_tree()` function will read the TU table, and create a territory tree out of it, with all its 35099 elements
 
-> [!NOTE]
-> It only takes a few seconds to load, but it takes around 30s (and a CPU spike) to construct the perfect hash function that maps (es_code) -> (node in the tree).
 
 
 ## Exemple of a potential usage of such a package
@@ -87,6 +85,7 @@ I used [this](https://py-pkgs.org/01-introduction) website as the main ressource
 ## Tests
 
 The tests checks the behavior of **Territory** objects. You can change whatever you want internaly as long as the tests passes.
+The tests rely on a **full_territorial_tree.gzip** file to run. It's essentially a cached tree. If you need to update it, please use the `test_build_tree.py` file.
 
 
 To run the tests :
@@ -104,10 +103,6 @@ $ pytest
 ## Deployment
 
 CI automatically deploy the package when there are push on the main branch. Do not deploy yourself.
-
-
-
-
 
 
 
