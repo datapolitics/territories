@@ -106,6 +106,10 @@ def test_union():
     for i, j in product(exemples, exemples):
         assert i | j == j | i
 
+    h = Territory(paris, nogent, pantin, lyon)
+    hu = Territory(paris, nogent) | Territory(pantin, lyon)
+    assert h == hu
+
 
 def test_intersection():
     Territory.assign_tree(tree)
