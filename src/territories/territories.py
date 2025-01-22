@@ -471,7 +471,30 @@ class Territory:
         ```
         """
         return cls.hash(tu_id)
-            
+
+
+    @classmethod
+    def from_tu_ids(cls, *args: Iterable[str]) -> Territory:
+        """Create a new Territory object from tu_ids
+        Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
+        Raises:
+            NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
+
+        Returns:
+            Territory: Territory object with territories associated with the given names.
+
+        exemple :
+        ```python
+        Territory.from_tu_ids(['COM:01044', 'COM:01149'])
+        >>> Douvres|Billiat
+        Territory.from_tu_ids('DEP:69')
+        >>> Rhône
+        ```
+        """
+        if isinstance(args[0], (list, tuple, set)):
+            return cls.from_names(*args[0])
+        return cls.from_names(*args)
+    
 
     @classmethod
     def from_names(cls, *args: Iterable[str]) -> Territory:
@@ -482,6 +505,8 @@ class Territory:
 
         Returns:
             Territory: Territory object with territories associated with the given names.
+
+        soon to be deprecated ? use `from_tu_ids()` instead
 
         exemple :
         ```python

@@ -89,6 +89,23 @@ def test_from_names():
         new = Territory.from_names("not exist", "Rhône")
 
 
+def test_from_tu_ids():
+    Territory.assign_tree(tree)
+
+    assert Territory(pantin, rhone) == Territory.from_tu_ids("Pantin", "Rhône")
+    assert Territory(pantin, rhone) == Territory.from_tu_ids(["Pantin", "Rhône"])
+    assert Territory(pantin, rhone) == Territory.from_tu_ids(("Pantin", "Rhône"))
+    assert Territory(pantin, rhone) == Territory.from_tu_ids({"Pantin", "Rhône"})
+
+
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
+        new = Territory.from_tu_ids("not exist", "Rhône", "yolo")
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
+        new = Territory.from_tu_ids(["not exist", "Rhône", "yolo"])
+
+    with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
+        new = Territory.from_tu_ids({"not exist", "Rhône"})
+
 
 def test_from_name():
     Territory.assign_tree(tree)
