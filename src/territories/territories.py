@@ -11,7 +11,7 @@ import rustworkx as rx
 from pathlib import Path
 from itertools import chain
 from collections import namedtuple
-from more_itertools import batched
+from more_itertools import batched, collapse
 from typing import Iterable, Optional
 from functools import lru_cache, reduce
 
@@ -382,6 +382,36 @@ class Territory:
 
 
     @classmethod
+    def get_parent(cls, other: TerritorialUnit) -> Optional[TerritorialUnit]:
+        """Return the parent of the given territorial unit.
+
+        Args:
+            other (TerritorialUnit): A TerritorialUnit object
+
+        Returns:
+            Optional[TerritorialUnit]: A TerritorialUnit object being the parent of the given territorial unit. None if the territorial unit has no parent.
+        """
+        try:
+            return cls.tree.predecessors(other.tree_id).pop()
+        except IndexError:
+            return None
+
+
+    @classmethod
+    def get_parents(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
+        """Return the parent of the given territorial unit.
+        If Territory objects are given, it will use their corresponding territorial units.
+
+        Returns:
+            Territory | None: A Territory object being the parent of the given territorial unit. The territory will be empty if the territorial unit has no parent.
+        """
+        if not others:
+            raise EmptyTerritoryError("An empty territory has no parent")
+        parent_tus = collapse(cls.tree.predecessors(node.tree_id) for node in collapse(others))
+        return Territory(*parent_tus)
+
+
+    @classmethod
     def all_ancestors(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit or territory.
         If Territory objects are given, it will use their corresponding territorial units.
@@ -704,6 +734,10 @@ class Territory:
         if include_itself:
             res = res | self.territorial_units
         return res
+
+
+    def parents(self) -> Territory:
+        return self.get_parents(self)
 
 
     def is_empty(self) -> bool:

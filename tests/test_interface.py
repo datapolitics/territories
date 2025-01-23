@@ -190,6 +190,19 @@ def test_type():
     assert empty.type == Partition.EMPTY
 
 
+def test_parents():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    ter = Territory.from_names("DEP:69", "COM:69132")
+    assert ter.parents() == Territory.from_names("REG:84")
+
+    ter = Territory.from_names("DEP:75", "COM:69132")
+    assert ter.parents() == Territory.from_names("REG:11", "DEP:69")
+
+    tu = Territory.from_name("DEP:69")
+    assert Territory.get_parent(tu) == Territory.from_name("REG:84")
+
 
 def setup():
     s = sample(Territory.tree.nodes(), 1000)
