@@ -678,7 +678,7 @@ class Territory:
     def __repr__(self) -> str:
         if self.territorial_units:
             return '|'.join(str(e) for e in sorted(self.territorial_units, reverse=True))
-        return '{}'
+        return 'ø'
 
 
     def to_es_filter(self) -> list[str]:
