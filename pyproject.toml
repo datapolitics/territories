@@ -23,3 +23,17 @@ Homepage = "https://github.com/datapolitics/territories"
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "pytest>=8.3.4",
+    "pytest-benchmark>=5.1.0",
+]
+
+
+[[tool.uv.index]]
+name = "datapolitics-index"
+url = "http://pypi.hedwige.fr:8080"
+publish-url = "http://pypi.hedwige.fr:8080"
+allow-insecure-host = ["http://pypi.hedwige.fr:8080"]

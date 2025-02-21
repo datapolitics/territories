@@ -96,6 +96,10 @@ def test_from_tu_ids():
     assert Territory(pantin, rhone) == Territory.from_tu_ids(["Pantin", "Rhône"])
     assert Territory(pantin, rhone) == Territory.from_tu_ids(("Pantin", "Rhône"))
     assert Territory(pantin, rhone) == Territory.from_tu_ids({"Pantin", "Rhône"})
+    assert Territory() == Territory.from_tu_ids({})
+    assert Territory() == Territory.from_tu_ids([])
+    assert Territory() == Territory.from_tu_ids(set())
+    assert Territory() == Territory.from_tu_ids(tuple())
 
 
     with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):

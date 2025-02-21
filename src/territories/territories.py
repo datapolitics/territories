@@ -29,7 +29,7 @@ class Territory:
     The package guarantee that the representation of a territory will always be efficient.
     For instance, if I create a `Territory` object with all regions from a country, it will simplify it to only the country object.
     """
-    tree: Optional[rx.DiGraph] = None
+    tree: Optional[rx.PyDiGraph] = None
     root_index: Optional[int] = None
     name_to_id: dict[str, int] = {}
 
@@ -107,9 +107,9 @@ class Territory:
         cls.reset()
 
         if filepath is None:
-            cache_dir = os.environ.get("API_CACHE_DIR")
+            cache_dir = os.environ.get("API_CACHE_DIR") or os.environ.get("CACHE_DIR")
             if cache_dir is None:
-                raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR env. variable")
+                raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
             path = Path(cache_dir, "territorial_tree_state.pickle")
         if isinstance(filepath, str):
             path = filepath
@@ -521,7 +521,7 @@ class Territory:
         >>> Rhône
         ```
         """
-        if isinstance(args[0], (list, tuple, set)):
+        if isinstance(args[0], (list, tuple, set, dict)):
             return cls.from_names(*args[0])
         return cls.from_names(*args)
     
