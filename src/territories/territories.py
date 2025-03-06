@@ -11,9 +11,9 @@ import rustworkx as rx
 from pathlib import Path
 from itertools import chain
 from collections import namedtuple
-from more_itertools import batched, collapse
-from typing import Iterable, Optional
 from functools import lru_cache, reduce
+from more_itertools import batched, collapse
+from typing import Any, Callable, Iterable, Iterator, Optional
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
@@ -679,6 +679,24 @@ class Territory:
         if self.territorial_units:
             return '|'.join(str(e) for e in sorted(self.territorial_units, reverse=True))
         return 'ø'
+
+    @classmethod
+    def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
+        yield cls.validate
+
+
+    @classmethod
+    def validate(cls, value: Any) -> Territory:
+        if isinstance(value, str):
+            return cls.try_parse(value)
+        if isinstance(value, cls):
+            return value
+        # Add custom validation logic as needed
+        return cls(value)
+
+    @classmethod
+    def try_parse(cls, input_string: str) -> Territory:
+        raise NotImplementedError("This method is not implemented yet")
 
 
     def to_es_filter(self) -> list[str]:

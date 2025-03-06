@@ -218,4 +218,12 @@ def setup():
 def test_creation(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)  
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=10)  
+
+
+def test_pydantic():
+    from pydantic import BaseModel
+
+    class TerritoryModel(BaseModel):
+        terr: Territory
+
