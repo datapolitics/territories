@@ -96,6 +96,10 @@ def test_from_tu_ids():
     assert Territory(pantin, rhone) == Territory.from_tu_ids(["Pantin", "Rhône"])
     assert Territory(pantin, rhone) == Territory.from_tu_ids(("Pantin", "Rhône"))
     assert Territory(pantin, rhone) == Territory.from_tu_ids({"Pantin", "Rhône"})
+    assert Territory() == Territory.from_tu_ids({})
+    assert Territory() == Territory.from_tu_ids([])
+    assert Territory() == Territory.from_tu_ids(set())
+    assert Territory() == Territory.from_tu_ids(tuple())
 
 
     with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
@@ -215,3 +219,22 @@ def test_creation(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
     benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)  
+
+
+def test_pydantic():
+    from pydantic import BaseModel
+
+    class TerritoryModel(BaseModel):
+        terr: Territory
+
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
+
+    TerritoryModel(terr=Territory.from_tu_ids("DEP:69", "COM:69132"))
+    TerritoryModel(terr='["DEP:69", "COM:69132"]')
+    TerritoryModel(terr={"DEP:69", "COM:69132"})
+    TerritoryModel(terr=["DEP:69", "COM:69132"])
+    TerritoryModel(terr=("DEP:69", "COM:69132"))
+    TerritoryModel(terr=tus)
