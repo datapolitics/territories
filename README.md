@@ -64,42 +64,36 @@ query = {"ids" : {
 
 query['bool']['should'].extend(topic_territory.to_es_query())
 
-documents = HArticle.search(using=target.es, index=target.index)\
+documents = Search(using=target.es, index=target.index)\
         .query(query)\
         .execute()
 ```
 
 
-## Questions left to answer
+## The pydantic feature
 
 
-> [!WARNING]
-> If a child has several parents (Grand Lyon or département du Rhône, île-de-france or IDF mobilité), how should we chose ?
+Territories are valid Pydantic types. It means you can validate input data with type hints ; in a web server for instance. Exemples to come.
 
 
-## Package structure
 
-I used [this](https://py-pkgs.org/01-introduction) website as the main ressource for the structure of the package. Also [this](https://docs.python-guide.org/writing/structure/) one is useful.
+## How to develop
 
+This package depends on [uv](https://docs.astral.sh/uv/getting-started/installation/). This is a better and simpler package manager than pip, and I strongly encourage you to make the switch.
+
+- run ```uv sync``` to create a virtual env and install all dependencies.
+- update the code in **src/territories/**
+- add tests in **tests/**
+- run the tests with `uv run pytest`
+- you can quickly iterate and test with the notebooks in **docs/usage.ipynb** by installing the package in the virtual env with `uv sync`
 
 ## Tests
 
 The tests checks the behavior of **Territory** objects. You can change whatever you want internaly as long as the tests passes.
-The tests rely on a **full_territorial_tree.gzip** file to run. It's essentially a cached tree. If you need to update it, please use the `test_build_tree.py` file.
+The tests relies on the **full_territorial_tree.gzip** file to load a territorial tree. If you need to update it, please use the `test_build_tree.py` file.
 
-
-To run the tests :
-```sh
-$ pip install -r requirements-dev.txt
-$ pip install .
-$ pytest
-
->>> tests/test_interface.py .....   [ 45%]
->>> tests/test_operators ......     [100%]
->>> 11 passed in 0.14s 
-```
 
 
 ## Deployment
 
-CI automatically deploy the package when there are push on the main branch. Do not deploy yourself.
+CI automatically deploy the package when there are pushes on the main branch. Do not deploy yourself.

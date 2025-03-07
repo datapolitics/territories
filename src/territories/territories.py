@@ -695,12 +695,16 @@ class Territory:
 
 
     if HAS_PYDANTIC:
+
         @classmethod
         def __get_pydantic_core_schema__(
             cls,
             _source_type: Any,
             _handler: GetCoreSchemaHandler
         ) -> CoreSchema:
+            """This is used by Pydantic to generate the schema for the Territory class.
+            It needs to handle all possible ways to create a Territory object.
+            """
             return core_schema.union_schema([
                 # Handle Territory instances directly
                 core_schema.is_instance_schema(Territory),
