@@ -736,7 +736,7 @@ class Territory:
                 ])
             ])
 
-
+        # this crash with some validators. Needs to be tested
         def __get_pydantic_json_schema__(
             self,
             _schema_generator: GetJsonSchemaHandler,
@@ -747,7 +747,7 @@ class Territory:
                 'description': 'Territory represented as string (format: "COM:12345" or multiple IDs separated by "|")'
             }
 
-
+        # needs to implement this for backward compatibility. Or not. Probbly not
         # @classmethod
         # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
         #     yield cls.validate
