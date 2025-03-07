@@ -64,8 +64,8 @@ class Territory:
                 partition = Partition.REG
             case "CNTRY", _:
                 partition = Partition.CNTRY
-            case _:
-                partition = None
+            case p:
+                raise TypeError(f"Unknow terrotory type {p}")
 
 
         return TerritorialUnit(
@@ -98,7 +98,8 @@ class Territory:
             raise Exception("The data is not a valid territorial tree.")
         if checksum != CHECKSUM:
             raise Exception("The data is not a valid territorial tree.")
-        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
+        assert isinstance(cls.tree, rx.PyDiGraph)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
 
 
     @classmethod
@@ -117,7 +118,7 @@ class Territory:
         File that can be loaded are the ones created by `Territory.save_tree()`
         """
         cls.reset()
-
+        path = None
         if filepath is None:
             cache_dir = os.environ.get("API_CACHE_DIR") or os.environ.get("CACHE_DIR")
             if cache_dir is None:
@@ -125,6 +126,8 @@ class Territory:
             path = Path(cache_dir, "territorial_tree_state.pickle")
         if isinstance(filepath, str):
             path = filepath
+        if not path: # wrong behavior, filepath should ba any representation of a filepath
+            raise TypeError("filepath has to ba a string")
         try:
             with open(path, "rb") as file:
                 try:
@@ -136,8 +139,9 @@ class Territory:
         except FileNotFoundError:
             raise MissingTreeCache(f"Tree object was not found at {path}")
 
-        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)  
-        names: list[TerritorialUnit] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
+        assert isinstance(cls.tree, rx.PyDiGraph)
+        cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
+        names: list[str] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
 
         for name in names:
             assert name == cls.hash(name).tu_id
@@ -145,7 +149,7 @@ class Territory:
 
     @classmethod
     def save_tree(cls, filepath: Optional[str] = None, return_bytes: bool = False) -> Optional[bytes]:
-        """Save the territorial tree and the hashmap to a file. 
+        """Save the territorial tree and the hashmap to a file.
 
         If no file is provided, it will look for the API_CACHE_DIR env. variable to create a new one.
 
@@ -169,7 +173,7 @@ class Territory:
             return pickle.dumps((CHECKSUM, cls.name_to_id, cls.tree))
         if path is None and not return_bytes:
             raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
-       
+
 
     @classmethod
     def build_tree(cls, data_stream: Iterable[Node], save_tree = True, filepath: Optional[str] = None):
@@ -184,10 +188,10 @@ class Territory:
             filepath (Optional[str], optional): File path to save the tree state to. If not provided, API_CACHE_DIR env. var. will be used. Defaults to None.
         """
         cls.reset()
-        
+
         tree = rx.PyDiGraph()
         mapper = {}
-        orphans: list[Node] = []
+        orphans: list[OrphanNode] = []
         batch_size = 1024
         OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
         for batch in batched(data_stream, batch_size):
@@ -271,6 +275,8 @@ class Territory:
             list[TerritorialUnit]: list of TerritorialUnit objects that are children of the given TerritorialUnit.
         """
         assert isinstance(tu, TerritorialUnit)
+        assert tu.tree_id is not None
+        assert isinstance(cls.tree, rx.PyDiGraph)
         return cls.tree.successors(tu.tree_id)
 
 
@@ -301,9 +307,10 @@ class Territory:
         # if union == children:
         #     return {node}
         # return union
-    
+        assert isinstance(cls.tree, rx.PyDiGraph)
 
-        # best method 
+
+        # best method
         if not items:
             return set()
         if node in items:
@@ -323,7 +330,7 @@ class Territory:
         return valids
 
 
-    
+
 
     @classmethod
     def union(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
@@ -451,8 +458,8 @@ class Territory:
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(*(rx.descendants(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
-    
-    
+
+
     @classmethod
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
@@ -461,7 +468,7 @@ class Territory:
             children = cls.tree.successors(a.tree_id)
             return set.union(*(cls._sub(child, b) for child in children))
         return {a}
-    
+
 
     @classmethod
     def _and(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
@@ -536,7 +543,7 @@ class Territory:
         if isinstance(args[0], (list, tuple, set, dict)):
             return cls.from_names(*args[0])
         return cls.from_names(*args)
-    
+
 
     @classmethod
     def from_names(cls, *args: Iterable[str]) -> Territory:
@@ -604,7 +611,7 @@ class Territory:
 
     def __iter__(self):
         return iter(self.territorial_units)
-    
+
 
     def __len__(self) -> int:
         return len(self.territorial_units)
@@ -621,13 +628,13 @@ class Territory:
 
     def __bool__(self):
         return len(self.territorial_units) != 0
-    
+
 
     def __add__(self, other: Territory) -> Territory:
         return Territory(
             *(self.territorial_units | other.territorial_units)
         )
-    
+
 
     def is_contained(self, other: Territory) -> bool:
         if self == other:
@@ -637,14 +644,14 @@ class Territory:
             if not any(other_entity.tree_id in ancestors for other_entity in other.territorial_units):
                 return False
         return True
-    
+
 
     def __contains__(self, other: Territory | TerritorialUnit) -> bool:
         if isinstance(other, TerritorialUnit):
             ancestors = rx.ancestors(self.tree, other.tree_id) | {other.tree_id}
             return any(child.tree_id in ancestors for child in self.territorial_units)
         return other.is_contained(self)
-    
+
 
     def is_disjoint(self, other: Territory) -> bool:
         pass
@@ -660,7 +667,7 @@ class Territory:
         if other.territorial_units is not None:
             return Territory(*chain(entities, other.territorial_units))
         return self
-    
+
 
     def __and__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
@@ -671,7 +678,7 @@ class Territory:
             return self
 
         return Territory.union(*(self & child for child in other.territorial_units))
-     
+
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
@@ -731,7 +738,7 @@ class Territory:
 
 
         def __get_pydantic_json_schema__(
-            self, 
+            self,
             _schema_generator: GetJsonSchemaHandler,
             _field_schema: Any
         ) -> dict[str, Any]:
@@ -739,12 +746,12 @@ class Territory:
                 'type': 'string',
                 'description': 'Territory represented as string (format: "COM:12345" or multiple IDs separated by "|")'
             }
-        
+
 
         # @classmethod
         # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
         #     yield cls.validate
-            
+
 
         # @classmethod
         # def validate(cls, value: Any) -> Territory:
@@ -764,7 +771,7 @@ class Territory:
         except json.JSONDecodeError:
             tus = input_string.split('|')
         return cls.from_tu_ids(*tus)
-    
+
 
     def lowest_common_ancestor(self) -> Optional[TerritorialUnit]:
         """Return the lowest common ancestor of the territorial units of this territory.
