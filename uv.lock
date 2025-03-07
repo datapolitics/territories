@@ -819,6 +819,11 @@ dependencies = [
     { name = "rustworkx" },
 ]
 
+[package.optional-dependencies]
+pydantic = [
+    { name = "pydantic" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "ipykernel" },
@@ -832,6 +837,7 @@ requires-dist = [
     { name = "json-fix", specifier = "==1.0.0" },
     { name = "more-itertools", specifier = "~=10.5.0" },
     { name = "psycopg2-binary" },
+    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0.0" },
     { name = "python-dotenv" },
     { name = "rustworkx", specifier = ">=0.15.1" },
 ]

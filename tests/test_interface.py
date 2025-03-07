@@ -218,7 +218,7 @@ def setup():
 def test_creation(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_names, setup=setup, rounds=10)  
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)  
 
 
 def test_pydantic():
@@ -227,3 +227,14 @@ def test_pydantic():
     class TerritoryModel(BaseModel):
         terr: Territory
 
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
+
+    TerritoryModel(terr=Territory.from_tu_ids("DEP:69", "COM:69132"))
+    TerritoryModel(terr='["DEP:69", "COM:69132"]')
+    TerritoryModel(terr={"DEP:69", "COM:69132"})
+    TerritoryModel(terr=["DEP:69", "COM:69132"])
+    TerritoryModel(terr=("DEP:69", "COM:69132"))
+    TerritoryModel(terr=tus)

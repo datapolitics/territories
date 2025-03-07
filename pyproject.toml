@@ -16,6 +16,10 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+pydantic = ["pydantic>=2.0.0"]
+
+
 [project.urls]
 Homepage = "https://github.com/datapolitics/territories"
 

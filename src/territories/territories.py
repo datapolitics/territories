@@ -1,10 +1,11 @@
 from __future__ import annotations
-import json_fix
-
 
 import os
+import json
 import pickle
 import logging
+import json_fix
+import warnings
 
 import rustworkx as rx
 
@@ -17,6 +18,17 @@ from typing import Any, Callable, Iterable, Iterator, Optional
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
+
+try:
+    from pydantic_core import CoreSchema
+    from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
+    from pydantic_core import core_schema
+    from typing import Any, ClassVar
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -536,7 +548,7 @@ class Territory:
         Returns:
             Territory: Territory object with territories associated with the given names.
 
-        soon to be deprecated ? use `from_tu_ids()` instead
+        soon to be deprecated, use `from_tu_ids()` instead
 
         exemple :
         ```python
@@ -544,6 +556,7 @@ class Territory:
         >>> Douvres|Billiat
         ```
         """
+        # warnings.warn("This method is deprecated, use from_tu_ids() instead", DeprecationWarning)
         if cls.tree is None:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities_idxs = (cls.hash(name) for name in args)
@@ -680,32 +693,73 @@ class Territory:
             return '|'.join(str(e) for e in sorted(self.territorial_units, reverse=True))
         return 'ø'
 
-    @classmethod
-    def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
-        yield cls.validate
+
+    if HAS_PYDANTIC:
+        @classmethod
+        def __get_pydantic_core_schema__(
+            cls,
+            _source_type: Any,
+            _handler: GetCoreSchemaHandler
+        ) -> CoreSchema:
+            return core_schema.union_schema([
+                # Handle Territory instances directly
+                core_schema.is_instance_schema(Territory),
+                # Handle strings (parse them as territory IDs)
+                core_schema.chain_schema([
+                    core_schema.str_schema(),
+                    core_schema.no_info_plain_validator_function(cls._try_parse)
+                ]),
+                # Handle lists/iterables of strings (parse as multiple territory IDs)
+                core_schema.chain_schema([
+                    core_schema.list_schema(core_schema.str_schema()),
+                    core_schema.no_info_plain_validator_function(
+                        lambda v: cls.from_tu_ids(*v)
+                    )
+                ]),
+                # Handle lists/iterables of TerritorialUnit instances
+                core_schema.chain_schema([
+                    core_schema.list_schema(core_schema.is_instance_schema(TerritorialUnit)),
+                    core_schema.no_info_plain_validator_function(
+                        lambda v: cls(*v)
+                    )
+                ])
+            ])
+
+
+        def __get_pydantic_json_schema__(
+            self, 
+            _schema_generator: GetJsonSchemaHandler,
+            _field_schema: Any
+        ) -> dict[str, Any]:
+            return {
+                'type': 'string',
+                'description': 'Territory represented as string (format: "COM:12345" or multiple IDs separated by "|")'
+            }
+        
+
+        # @classmethod
+        # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
+        #     yield cls.validate
+            
+
+        # @classmethod
+        # def validate(cls, value: Any) -> Territory:
+        #     if isinstance(value, str):
+        #         return cls.try_parse(value)
+        #     if isinstance(value, cls):
+        #         return value
+        #     if isinstance(value, Iterable):
+        #         return cls.from_tu_ids(*value)
+        #     return cls.from_tu_ids(value)
 
 
     @classmethod
-    def validate(cls, value: Any) -> Territory:
-        if isinstance(value, str):
-            return cls.try_parse(value)
-        if isinstance(value, cls):
-            return value
-        # Add custom validation logic as needed
-        return cls(value)
-
-    @classmethod
-    def try_parse(cls, input_string: str) -> Territory:
-        raise NotImplementedError("This method is not implemented yet")
-
-
-    def to_es_filter(self) -> list[str]:
-        """Return the filter list to append to an ElasticSearch query to filter by this territory. 
-
-        Returns:
-            list[str]: Something like `[{"term" : {"tu_zone" : "DEP:69"}}, {"term" : {"tu_zone" : "COM:75023"}}]`
-        """
-        return [{"term" : {"tu_zone" : e.tu_id}} for e in self.territorial_units]
+    def _try_parse(cls, input_string: str) -> Territory:
+        try:
+            tus = json.loads(input_string)
+        except json.JSONDecodeError:
+            tus = input_string.split('|')
+        return cls.from_tu_ids(*tus)
     
 
     def lowest_common_ancestor(self) -> Optional[TerritorialUnit]:
