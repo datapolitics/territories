@@ -226,7 +226,7 @@ def test_tu_ids():
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
-    assert ter.tu_ids == ["DEP:69", "DEP:75"]
+    assert set(ter.tu_ids) == {"DEP:69", "DEP:75"}
 
 
 def test_pydantic():

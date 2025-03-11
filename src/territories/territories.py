@@ -13,8 +13,8 @@ from pathlib import Path
 from itertools import chain
 from collections import namedtuple
 from functools import lru_cache, reduce
+from typing import Any, Iterable, Optional
 from more_itertools import batched, collapse
-from typing import Any, Callable, Iterable, Iterator, Optional
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
@@ -23,7 +23,6 @@ try:
     from pydantic_core import CoreSchema
     from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
     from pydantic_core import core_schema
-    from typing import Any, ClassVar
     HAS_PYDANTIC = True
 except ImportError:
     HAS_PYDANTIC = False
@@ -122,9 +121,9 @@ class Territory:
         if filepath is None:
             cache_dir = os.environ.get("API_CACHE_DIR") or os.environ.get("CACHE_DIR")
             if cache_dir is None:
-                raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
+                raise MissingTreeCache("No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
             path = Path(cache_dir, "territorial_tree_state.pickle")
-        if isinstance(filepath, (str, path)):
+        if isinstance(filepath, (str, Path)):
             path = filepath
         if not path: # wrong behavior, filepath should be any representation of a filepath
             raise TypeError("filepath has to ba a string")
@@ -223,14 +222,12 @@ class Territory:
                         orphans.append(orphan)
             tree.add_edges_from(edges)
 
-
         edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
         tree.add_edges_from(edges)
 
-        orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
-        if orphans:
-            logger.warning(f"{len(orphans)} elements where not added to the tree because they have no parents : {orphans}")
-
+        last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+        if last_orphans:
+            logger.warning(f"{len(last_orphans)} elements where not added to the tree because they have no parents : {last_orphans}")
 
         cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
         cls.tree = tree
@@ -370,6 +367,7 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
+        assert isinstance(cls.tree, rx.PyDiGraph)
         # not necessary, maybe better performance for small territories
         # if len(others) == 1:
         #     node = others[0]
@@ -411,6 +409,7 @@ class Territory:
             Optional[TerritorialUnit]: A TerritorialUnit object being the parent of the given territorial unit. None if the territorial unit has no parent.
         """
         try:
+            assert isinstance(cls.tree, rx.PyDiGraph)
             return cls.tree.predecessors(other.tree_id).pop()
         except IndexError:
             return None
@@ -426,6 +425,7 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no parent")
+        assert isinstance(cls.tree, rx.PyDiGraph)
         parent_tus = collapse(cls.tree.predecessors(node.tree_id) for node in collapse(others))
         return Territory(*parent_tus)
 
@@ -440,6 +440,7 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
+        assert isinstance(cls.tree, rx.PyDiGraph)
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
@@ -455,6 +456,7 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
+        assert isinstance(cls.tree, rx.PyDiGraph)
         others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(*(rx.descendants(cls.tree, e.tree_id) for e in others))
         return {cls.tree.get_node_data(i) for i in ancestors}
@@ -464,6 +466,7 @@ class Territory:
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return set()
+        assert isinstance(cls.tree, rx.PyDiGraph)
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
             children = cls.tree.successors(a.tree_id)
             return set.union(*(cls._sub(child, b) for child in children))
