@@ -124,9 +124,9 @@ class Territory:
             if cache_dir is None:
                 raise MissingTreeCache(f"No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
             path = Path(cache_dir, "territorial_tree_state.pickle")
-        if isinstance(filepath, str):
+        if isinstance(filepath, (str, path)):
             path = filepath
-        if not path: # wrong behavior, filepath should ba any representation of a filepath
+        if not path: # wrong behavior, filepath should be any representation of a filepath
             raise TypeError("filepath has to ba a string")
         try:
             with open(path, "rb") as file:
@@ -523,7 +523,7 @@ class Territory:
 
 
     @classmethod
-    def from_tu_ids(cls, *args: Iterable[str]) -> Territory:
+    def from_tu_ids(cls, *args: Iterable[str | Iterable[str]]) -> Territory:
         """Create a new Territory object from tu_ids
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
         Raises:
@@ -540,6 +540,8 @@ class Territory:
         >>> Rhône
         ```
         """
+        if not args:
+            raise TypeError("`from_tu_ids()` needs at least one arguments")
         if isinstance(args[0], (list, tuple, set, dict)):
             return cls.from_names(*args[0])
         return cls.from_names(*args)
@@ -607,6 +609,16 @@ class Territory:
         if self.is_empty():
             return Partition.EMPTY
         return min(self).level
+
+
+    @property
+    def tu_ids(self) -> list[str]:
+        """Return the tu_ids of every territorial units in the territory.
+
+        Returns:
+            list[str]: List of tu_ids
+        """
+        return [e.tu_id for e in self.territorial_units]
 
 
     def __iter__(self):
@@ -703,6 +715,7 @@ class Territory:
 
     if HAS_PYDANTIC:
 
+        # this method should raise specific Pydantic Exceptions
         @classmethod
         def __get_pydantic_core_schema__(
             cls,
@@ -724,7 +737,7 @@ class Territory:
                 core_schema.chain_schema([
                     core_schema.list_schema(core_schema.str_schema()),
                     core_schema.no_info_plain_validator_function(
-                        lambda v: cls.from_tu_ids(*v)
+                        lambda v: cls.from_tu_ids(v)
                     )
                 ]),
                 # Handle lists/iterables of TerritorialUnit instances
@@ -744,7 +757,7 @@ class Territory:
         ) -> dict[str, Any]:
             return {
                 'type': 'string',
-                'description': 'Territory represented as string (format: "COM:12345" or multiple IDs separated by "|")'
+                'description': 'Territory represented as string (format: ["COM:12345", "DEP:69"] or multiple IDs separated by "|")'
             }
 
         # needs to implement this for backward compatibility. Or not. Probbly not
@@ -770,7 +783,7 @@ class Territory:
             tus = json.loads(input_string)
         except json.JSONDecodeError:
             tus = input_string.split('|')
-        return cls.from_tu_ids(*tus)
+        return cls.from_tu_ids(tus)
 
 
     def lowest_common_ancestor(self) -> Optional[TerritorialUnit]:
