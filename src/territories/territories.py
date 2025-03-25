@@ -123,7 +123,7 @@ class Territory:
             if cache_dir is None:
                 raise MissingTreeCache("No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
             path = Path(cache_dir, "territorial_tree_state.pickle")
-        if isinstance(filepath, (str, Path)):
+        if isinstance(filepath, (str, Path, os.PathLike)):
             path = filepath
         if not path: # wrong behavior, filepath should be any representation of a filepath
             raise TypeError("filepath has to ba a string")

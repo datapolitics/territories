@@ -2,7 +2,7 @@ import os
 try:
     import psycopg2
 except ModuleNotFoundError:
-    raise Exception("Install the postgres optional dependency to load the tree from the DB (uv add 'territories[postgres]')")
+    raise Exception("Install the postgres optional dependency to load the tree from the DB (uv add 'territories[postgres]')") from None
 
 from dotenv import load_dotenv
 from typing import Iterable, Optional
