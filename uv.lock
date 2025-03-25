@@ -859,12 +859,14 @@ source = { editable = "." }
 dependencies = [
     { name = "json-fix" },
     { name = "more-itertools" },
-    { name = "psycopg2-binary" },
     { name = "python-dotenv" },
     { name = "rustworkx" },
 ]
 
 [package.optional-dependencies]
+postgres = [
+    { name = "psycopg2-binary" },
+]
 pydantic = [
     { name = "pydantic" },
 ]
@@ -872,6 +874,7 @@ pydantic = [
 [package.dev-dependencies]
 dev = [
     { name = "ipykernel" },
+    { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -881,7 +884,7 @@ dev = [
 requires-dist = [
     { name = "json-fix", specifier = "==1.0.0" },
     { name = "more-itertools", specifier = "~=10.5.0" },
-    { name = "psycopg2-binary" },
+    { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.10" },
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0.0" },
     { name = "python-dotenv" },
     { name = "rustworkx", specifier = ">=0.16.0" },
@@ -890,6 +893,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },

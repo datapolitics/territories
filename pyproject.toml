@@ -11,13 +11,15 @@ dependencies = [
     "rustworkx>=0.16.0",
     "python-dotenv",
     "more-itertools~=10.5.0",
-    "psycopg2-binary",
     "json-fix==1.0.0",
 ]
 
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0.0"]
+postgres = [
+    "psycopg2-binary>=2.9.10",
+]
 
 
 [project.urls]
@@ -31,6 +33,7 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
+    "psycopg2-binary>=2.9.10",
     "pydantic>=2.10.6",
     "pytest>=8.3.4",
     "pytest-benchmark>=5.1.0",
