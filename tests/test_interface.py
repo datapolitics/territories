@@ -35,7 +35,7 @@ mapper = {o : idx for o, idx in zip(entities, entities_indices)}
 edges = [
     (france, idf),
     (france, sud),
-    
+
     (idf, nogent),
     (idf, pantin),
     (idf, paris),
@@ -139,7 +139,7 @@ def test_iteration():
 
     for i in a:
         assert i in a.territorial_units
- 
+
 
 def test_build_tree():
 
@@ -218,7 +218,15 @@ def setup():
 def test_creation(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)  
+    benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)
+
+
+def test_tu_ids():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
+    assert set(ter.tu_ids) == {"DEP:69", "DEP:75"}
 
 
 def test_pydantic():
@@ -232,9 +240,11 @@ def test_pydantic():
 
     tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
 
-    TerritoryModel(terr=Territory.from_tu_ids("DEP:69", "COM:69132"))
+    TerritoryModel(terr=Territory.from_tu_ids("DEP:75", "COM:69132"))
     TerritoryModel(terr='["DEP:69", "COM:69132"]')
+    TerritoryModel(terr='[]')
     TerritoryModel(terr={"DEP:69", "COM:69132"})
     TerritoryModel(terr=["DEP:69", "COM:69132"])
     TerritoryModel(terr=("DEP:69", "COM:69132"))
+    TerritoryModel(terr=[])
     TerritoryModel(terr=tus)
