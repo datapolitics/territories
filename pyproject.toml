@@ -1,18 +1,18 @@
 [project]
 name = "territories"
 version = "0.1.10"
-authors = [{ name="Timo", email="timothee@datapolitics.fr" }]
+authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
 requires-python = ">=3.10"
 
 
 dependencies = [
-  "rustworkx>=0.15.1",
-  "python-dotenv",
-  "more-itertools~=10.5.0",
-  "psycopg2-binary",
-  "json-fix==1.0.0"
+    "rustworkx>=0.16.0",
+    "python-dotenv",
+    "more-itertools~=10.5.0",
+    "psycopg2-binary",
+    "json-fix==1.0.0",
 ]
 
 
