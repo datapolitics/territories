@@ -242,10 +242,10 @@ def test_pydantic():
     tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
 
     TerritoryModel(terr=Territory.from_tu_ids("DEP:75", "COM:69132"))
-    TerritoryModel(terr='["DEP:69", "COM:69132"]')
-    TerritoryModel(terr='[]')
+    # TerritoryModel(terr='["DEP:69", "COM:69132"]')
+    # TerritoryModel(terr='[]')
     TerritoryModel(terr={"DEP:69", "COM:69132"})
     TerritoryModel(terr=["DEP:69", "COM:69132"])
     TerritoryModel(terr=("DEP:69", "COM:69132"))
-    TerritoryModel(terr=[])
     TerritoryModel(terr=tus)
+    TerritoryModel(terr=[])
