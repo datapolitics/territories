@@ -527,7 +527,8 @@ class Territory:
 
     @classmethod
     def from_tu_ids(cls, *args: Iterable[str | Iterable[str]]) -> Territory:
-        """Create a new Territory object from tu_ids
+        """Create a new Territory object from tu_ids.
+
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
         Raises:
             NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
@@ -618,8 +619,7 @@ class Territory:
         territorial_units = set(args)
         if territorial_units:
             entities_idxs = {e.tree_id for e in territorial_units}
-            #  guarantee the Territory is always represented in minimal form
-            # territories are immutable
+            # guarantee the Territory is always represented in minimal form
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
             self.territorial_units: set[TerritorialUnit] = frozenset()
@@ -750,10 +750,10 @@ class Territory:
                 # Handle Territory instances directly
                 core_schema.is_instance_schema(Territory),
                 # Handle strings (parse them as territory IDs)
-                core_schema.chain_schema([
-                    core_schema.str_schema(),
-                    core_schema.no_info_plain_validator_function(cls._try_parse)
-                ]),
+                # core_schema.chain_schema([
+                #     core_schema.str_schema(),
+                #     core_schema.no_info_plain_validator_function(cls._try_parse)
+                # ]),
                 # Handle lists/iterables of strings (parse as multiple territory IDs)
                 core_schema.chain_schema([
                     core_schema.list_schema(core_schema.str_schema()),
@@ -771,17 +771,19 @@ class Territory:
             ])
 
         # this crash with some validators. Needs to be tested
+        @classmethod
         def __get_pydantic_json_schema__(
-            self,
-            _schema_generator: GetJsonSchemaHandler,
-            _field_schema: Any
+            cls,
+            core_schema: dict[str, Any],
+            handler: GetJsonSchemaHandler,
         ) -> dict[str, Any]:
-            return {
-                'type': 'string',
-                'description': 'Territory represented as string (format: ["COM:12345", "DEP:69"] or multiple IDs separated by "|")'
-            }
+            json_schema = handler(core_schema)
+            # Optionally, add or override properties – here we set the title to the class name.
+            json_schema["title"] = cls.__name__
+            json_schema["example"] = ["DEP:69", "DEP:75", "COM:75056"]
+            return json_schema
 
-        # needs to implement this for backward compatibility. Or not. Probbly not
+        # needs to implement this for backward compatibility. Or not. Probably not
         # @classmethod
         # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
         #     yield cls.validate
