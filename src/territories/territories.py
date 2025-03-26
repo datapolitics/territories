@@ -500,7 +500,7 @@ class Territory:
             node_id = cls.name_to_id[name]
             return cls.tree.get_node_data(node_id)
         except KeyError:
-            raise NotOnTreeError(f"{name} is not in the territorial tree")
+            raise NotOnTreeError(name)
 
 
     @classmethod
@@ -543,11 +543,29 @@ class Territory:
         >>> Rhône
         ```
         """
+        if cls.tree is None:
+                raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
         if isinstance(args[0], (list, tuple, set, dict)):
-            return cls.from_names(*args[0])
-        return cls.from_names(*args)
+            if len(args) > 1:
+                raise TypeError("`from_tu_ids()` needs only one iterable of tu_ids")
+            tu_ids = iter(args[0])
+        else:
+            tu_ids = iter(args)      
+        try:
+            entities_idxs = {cls.hash(name) for name in tu_ids}
+            return Territory(*entities_idxs)
+        except NotOnTreeError as e:
+            wrong_elements = {e}
+            for name in tu_ids:
+                try:
+                    cls.hash(name)
+                except NotOnTreeError:
+                    wrong_elements.add(name)
+            verb = "where" if len(wrong_elements) > 1 else "was"
+            wrong_elements = ', '.join(str(e) for e in wrong_elements)
+            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
 
 
     @classmethod
@@ -568,7 +586,7 @@ class Territory:
         >>> Douvres|Billiat
         ```
         """
-        # warnings.warn("This method is deprecated, use from_tu_ids() instead", DeprecationWarning)
+        warnings.warn("This method is deprecated, use from_tu_ids() instead", UserWarning)
         if cls.tree is None:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities_idxs = (cls.hash(name) for name in args)
