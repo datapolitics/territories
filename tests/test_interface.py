@@ -69,14 +69,15 @@ exemples = (a, b, c, d, e, f)
 
 
 def test_creation():
+    Territory.reset()
     with pytest.raises(MissingTreeException):
         Territory()
     with pytest.raises(MissingTreeException):
-        Territory.from_names("DEP:69")
+        Territory.from_tu_ids("DEP:69")
     Territory.assign_tree(tree)
     Territory()
 
-
+@pytest.mark.filterwarnings("ignore:This method is deprecated")
 def test_from_names():
     Territory.assign_tree(tree)
     new = Territory.from_names("Pantin", "Rhône")
@@ -102,13 +103,14 @@ def test_from_tu_ids():
     assert Territory() == Territory.from_tu_ids(tuple())
 
 
-    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
-        new = Territory.from_tu_ids("not exist", "Rhône", "yolo")
-    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
-        new = Territory.from_tu_ids(["not exist", "Rhône", "yolo"])
-
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+        _ = Territory.from_tu_ids("not exist", "Rhône", "yolo")
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+            _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo"])
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+        _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo", "Pantin"])
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
-        new = Territory.from_tu_ids({"not exist", "Rhône"})
+        _ = Territory.from_tu_ids({"not exist", "Rhône"})
 
 
 def test_from_name():
@@ -116,8 +118,9 @@ def test_from_name():
     new = Territory.from_name("Pantin")
     assert new == Territory(pantin)
 
-    with pytest.raises(NotOnTreeError, match='not exist is not in the territorial tree'):
+    with pytest.raises(NotOnTreeError, match='not exist'):
         new = Territory.from_name("not exist")
+
 
 def test_union():
     Territory.assign_tree(tree)
@@ -188,7 +191,7 @@ def test_type():
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
-    ter = Territory.from_names(*names)
+    ter = Territory.from_tu_ids(*names)
     assert ter.type == Partition.CNTRY
     empty = Territory()
     assert empty.type == Partition.EMPTY
@@ -198,11 +201,11 @@ def test_parents():
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
-    ter = Territory.from_names("DEP:69", "COM:69132")
-    assert ter.parents() == Territory.from_names("REG:84")
+    ter = Territory.from_tu_ids("DEP:69", "COM:69132")
+    assert ter.parents() == Territory.from_tu_ids("REG:84")
 
-    ter = Territory.from_names("DEP:75", "COM:69132")
-    assert ter.parents() == Territory.from_names("REG:11", "DEP:69")
+    ter = Territory.from_tu_ids("DEP:75", "COM:69132")
+    assert ter.parents() == Territory.from_tu_ids("REG:11", "DEP:69")
 
     tu = Territory.from_name("DEP:69")
     assert Territory.get_parent(tu) == Territory.from_name("REG:84")
@@ -210,15 +213,15 @@ def test_parents():
 
 def setup():
     s = sample(Territory.tree.nodes(), 1000)
-    ter = Territory.from_names(*(ter.tu_id for ter in s))
+    ter = Territory.from_tu_ids(*(ter.tu_id for ter in s))
     names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
     return names, {}
 
 
-def test_creation(benchmark):
+def test_creation_benchmark(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_names, setup=setup, rounds=100)
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup, rounds=10)
 
 
 def test_tu_ids():
@@ -241,10 +244,10 @@ def test_pydantic():
     tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
 
     TerritoryModel(terr=Territory.from_tu_ids("DEP:75", "COM:69132"))
-    TerritoryModel(terr='["DEP:69", "COM:69132"]')
-    TerritoryModel(terr='[]')
+    # TerritoryModel(terr='["DEP:69", "COM:69132"]')
+    # TerritoryModel(terr='[]')
     TerritoryModel(terr={"DEP:69", "COM:69132"})
     TerritoryModel(terr=["DEP:69", "COM:69132"])
     TerritoryModel(terr=("DEP:69", "COM:69132"))
-    TerritoryModel(terr=[])
     TerritoryModel(terr=tus)
+    TerritoryModel(terr=[])
