@@ -227,7 +227,7 @@ class Territory:
 
         last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
         if last_orphans:
-            logger.warning(f"{len(last_orphans)} elements where not added to the tree because they have no parents : {last_orphans}")
+            logger.warning(f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}")
 
         cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
         cls.tree = tree
@@ -499,8 +499,8 @@ class Territory:
         try:
             node_id = cls.name_to_id[name]
             return cls.tree.get_node_data(node_id)
-        except KeyError:
-            raise NotOnTreeError(name)
+        except KeyError as e:
+            raise NotOnTreeError(name) from e
 
 
     @classmethod
@@ -553,9 +553,9 @@ class Territory:
                 raise TypeError("`from_tu_ids()` needs only one iterable of tu_ids")
             tu_ids = iter(args[0])
         else:
-            tu_ids = iter(args)      
+            tu_ids = iter(args)
         try:
-            entities_idxs = {cls.hash(name) for name in tu_ids}
+            entities_idxs = {cls.hash(tu) for tu in tu_ids}
             return Territory(*entities_idxs)
         except NotOnTreeError as e:
             wrong_elements = {e}
@@ -564,9 +564,9 @@ class Territory:
                     cls.hash(name)
                 except NotOnTreeError:
                     wrong_elements.add(name)
-            verb = "where" if len(wrong_elements) > 1 else "was"
+            verb = "were" if len(wrong_elements) > 1 else "was"
             wrong_elements = ', '.join(str(e) for e in wrong_elements)
-            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
+            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
 
 
     @classmethod

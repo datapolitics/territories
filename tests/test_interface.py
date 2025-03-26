@@ -69,6 +69,7 @@ exemples = (a, b, c, d, e, f)
 
 
 def test_creation():
+    Territory.reset()
     with pytest.raises(MissingTreeException):
         Territory()
     with pytest.raises(MissingTreeException):
@@ -102,13 +103,14 @@ def test_from_tu_ids():
     assert Territory() == Territory.from_tu_ids(tuple())
 
 
-    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
-        new = Territory.from_tu_ids("not exist", "Rhône", "yolo")
-    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
-        new = Territory.from_tu_ids(["not exist", "Rhône", "yolo"])
-
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+        _ = Territory.from_tu_ids("not exist", "Rhône", "yolo")
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+            _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo"])
+    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ were not found in the territorial tree$"):
+        _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo", "Pantin"])
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
-        new = Territory.from_tu_ids({"not exist", "Rhône"})
+        _ = Territory.from_tu_ids({"not exist", "Rhône"})
 
 
 def test_from_name():
@@ -216,7 +218,7 @@ def setup():
     return names, {}
 
 
-def test_creation(benchmark):
+def test_creation_benchmark(benchmark):
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
     benchmark.pedantic(Territory.from_tu_ids, setup=setup, rounds=10)
