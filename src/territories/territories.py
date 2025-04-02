@@ -544,10 +544,11 @@ class Territory:
         >>> Rhône
         ```
         """
-        if cls.tree is None:
-                raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
+        if cls.tree is None: # should I raise this even in empty Territory creation ?
+            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
+            # return cls()
         if isinstance(args[0], (list, tuple, set, dict)):
             if len(args) > 1:
                 raise TypeError("`from_tu_ids()` needs only one iterable of tu_ids")
