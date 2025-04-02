@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.1.10"
+version = "0.1.11"
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
@@ -10,16 +10,14 @@ requires-python = ">=3.10"
 dependencies = [
     "rustworkx>=0.16.0",
     "python-dotenv",
-    "more-itertools~=10.5.0",
+    "more-itertools~=10.6.0",
     "json-fix==1.0.0",
 ]
 
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0.0"]
-postgres = [
-    "psycopg2-binary>=2.9.10",
-]
+postgres = ["psycopg2-binary>=2.9.10"]
 
 
 [project.urls]

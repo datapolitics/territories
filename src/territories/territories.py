@@ -227,7 +227,7 @@ class Territory:
 
         last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
         if last_orphans:
-            logger.warning(f"{len(last_orphans)} elements where not added to the tree because they have no parents : {last_orphans}")
+            logger.warning(f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}")
 
         cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
         cls.tree = tree
@@ -499,8 +499,8 @@ class Territory:
         try:
             node_id = cls.name_to_id[name]
             return cls.tree.get_node_data(node_id)
-        except KeyError:
-            raise NotOnTreeError(f"{name} is not in the territorial tree")
+        except KeyError as e:
+            raise NotOnTreeError(name) from e
 
 
     @classmethod
@@ -527,7 +527,8 @@ class Territory:
 
     @classmethod
     def from_tu_ids(cls, *args: Iterable[str | Iterable[str]]) -> Territory:
-        """Create a new Territory object from tu_ids
+        """Create a new Territory object from tu_ids.
+
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
         Raises:
             NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
@@ -543,11 +544,30 @@ class Territory:
         >>> Rhône
         ```
         """
+        if cls.tree is None: # should I raise this even in empty Territory creation ?
+            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
+            # return cls()
         if isinstance(args[0], (list, tuple, set, dict)):
-            return cls.from_names(*args[0])
-        return cls.from_names(*args)
+            if len(args) > 1:
+                raise TypeError("`from_tu_ids()` needs only one iterable of tu_ids")
+            tu_ids = iter(args[0])
+        else:
+            tu_ids = iter(args)
+        try:
+            entities_idxs = {cls.hash(tu) for tu in tu_ids}
+            return Territory(*entities_idxs)
+        except NotOnTreeError as e:
+            wrong_elements = {e}
+            for name in tu_ids:
+                try:
+                    cls.hash(name)
+                except NotOnTreeError:
+                    wrong_elements.add(name)
+            verb = "were" if len(wrong_elements) > 1 else "was"
+            wrong_elements = ', '.join(str(e) for e in wrong_elements)
+            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
 
 
     @classmethod
@@ -568,7 +588,7 @@ class Territory:
         >>> Douvres|Billiat
         ```
         """
-        # warnings.warn("This method is deprecated, use from_tu_ids() instead", DeprecationWarning)
+        warnings.warn("This method is deprecated, use from_tu_ids() instead", UserWarning)
         if cls.tree is None:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities_idxs = (cls.hash(name) for name in args)
@@ -600,8 +620,7 @@ class Territory:
         territorial_units = set(args)
         if territorial_units:
             entities_idxs = {e.tree_id for e in territorial_units}
-            #  guarantee the Territory is always represented in minimal form
-            # territories are immutable
+            # guarantee the Territory is always represented in minimal form
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
             self.territorial_units: set[TerritorialUnit] = frozenset()
@@ -732,10 +751,10 @@ class Territory:
                 # Handle Territory instances directly
                 core_schema.is_instance_schema(Territory),
                 # Handle strings (parse them as territory IDs)
-                core_schema.chain_schema([
-                    core_schema.str_schema(),
-                    core_schema.no_info_plain_validator_function(cls._try_parse)
-                ]),
+                # core_schema.chain_schema([
+                #     core_schema.str_schema(),
+                #     core_schema.no_info_plain_validator_function(cls._try_parse)
+                # ]),
                 # Handle lists/iterables of strings (parse as multiple territory IDs)
                 core_schema.chain_schema([
                     core_schema.list_schema(core_schema.str_schema()),
@@ -753,17 +772,19 @@ class Territory:
             ])
 
         # this crash with some validators. Needs to be tested
+        @classmethod
         def __get_pydantic_json_schema__(
-            self,
-            _schema_generator: GetJsonSchemaHandler,
-            _field_schema: Any
+            cls,
+            core_schema: dict[str, Any],
+            handler: GetJsonSchemaHandler,
         ) -> dict[str, Any]:
-            return {
-                'type': 'string',
-                'description': 'Territory represented as string (format: ["COM:12345", "DEP:69"] or multiple IDs separated by "|")'
-            }
+            json_schema = handler(core_schema)
+            # Optionally, add or override properties – here we set the title to the class name.
+            json_schema["title"] = cls.__name__
+            json_schema["example"] = ["DEP:69", "DEP:75", "COM:75056"]
+            return json_schema
 
-        # needs to implement this for backward compatibility. Or not. Probbly not
+        # needs to implement this for backward compatibility. Or not. Probably not
         # @classmethod
         # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
         #     yield cls.validate
