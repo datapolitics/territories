@@ -94,6 +94,8 @@ def test_from_tu_ids():
     Territory.assign_tree(tree)
 
     assert Territory(pantin, rhone) == Territory.from_tu_ids("Pantin", "Rhône")
+    assert Territory(pantin) == Territory.from_tu_ids("Pantin")
+    assert Territory(pantin) == Territory.from_tu_ids((i for i in ("Pantin", "Rhône")))
     assert Territory(pantin, rhone) == Territory.from_tu_ids(["Pantin", "Rhône"])
     assert Territory(pantin, rhone) == Territory.from_tu_ids(("Pantin", "Rhône"))
     assert Territory(pantin, rhone) == Territory.from_tu_ids({"Pantin", "Rhône"})
