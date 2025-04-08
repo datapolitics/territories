@@ -232,6 +232,14 @@ def test_tu_ids():
     assert set(ter.tu_ids) == {"DEP:69", "DEP:75"}
 
 
+def test_tu_names():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+    ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
+    assert set(ter.tu_names) == {"Rhône", "Paris"}
+
+
 def test_pydantic():
     from pydantic import BaseModel
 

@@ -883,7 +883,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "json-fix", specifier = "==1.0.0" },
-    { name = "more-itertools", specifier = "~=10.6.0" },
+    { name = "more-itertools", specifier = ">=10.5.0" },
     { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.10" },
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.0.0" },
     { name = "python-dotenv" },

@@ -643,6 +643,16 @@ class Territory:
         return [e.tu_id for e in self.territorial_units]
 
 
+    @property
+    def tu_names(self) -> list[str]:
+        """Return the names of every territorial units in the territory.
+
+        Returns:
+            list[str]: List of names
+        """
+        return [e.name for e in self.territorial_units]
+
+
     def __iter__(self):
         return iter(self.territorial_units)
 
