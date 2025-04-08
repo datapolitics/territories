@@ -549,12 +549,7 @@ class Territory:
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
             # return cls()
-        if isinstance(args[0], (list, tuple, set, dict)):
-            if len(args) > 1:
-                raise TypeError("`from_tu_ids()` needs only one iterable of tu_ids")
-            tu_ids = iter(args[0])
-        else:
-            tu_ids = iter(args)
+        tu_ids = iter(collapse(args))
         try:
             entities_idxs = {cls.hash(tu) for tu in tu_ids}
             return Territory(*entities_idxs)
