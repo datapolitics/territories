@@ -235,7 +235,7 @@ def test_tu_ids():
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
-    assert set(ter.tu_ids) == {"DEP:75", "DEP:69"}
+    assert ter.tu_ids == ["DEP:75", "DEP:69"] # the order must be deterministic
 
 
 def test_tu_names():
@@ -243,7 +243,7 @@ def test_tu_names():
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
-    assert set(ter.tu_names) == {"Paris", "Rhône"}
+    assert ter.tu_names == ["Paris", "Rhône"] # the order must be deterministic
 
 
 def test_pydantic():
