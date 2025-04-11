@@ -635,7 +635,8 @@ class Territory:
         Returns:
             list[str]: List of tu_ids
         """
-        return [e.tu_id for e in self.territorial_units]
+        # sort the territories to get deterministic behavior
+        return [e.tu_id for e in sorted(self.territorial_units)]
 
 
     @property
@@ -645,7 +646,8 @@ class Territory:
         Returns:
             list[str]: List of names
         """
-        return [e.name for e in self.territorial_units]
+        # sort the territories to get deterministic behavior
+        return [e.name for e in sorted(self.territorial_units)]
 
 
     def __iter__(self):
