@@ -38,7 +38,7 @@ The `build_tree()` function will read the TU table, and create a territory tree 
 
 ```python
 # es code are received from the UI, for instance
-topic_territory = Territory.from_es_codes("COM:234", "COM:943", "DEP:23")
+topic_territory = Territory.from_tu_ids("COM:234", "COM:943", "DEP:23")
 
 
 # lowest common ancestor of the territorial units
