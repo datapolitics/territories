@@ -12,6 +12,7 @@ import rustworkx as rx
 from pathlib import Path
 from itertools import chain
 from collections import namedtuple
+from importlib.resources import files
 from functools import lru_cache, reduce
 from typing import Any, Iterable, Optional
 from more_itertools import batched, collapse
@@ -27,6 +28,10 @@ try:
 except ImportError:
     HAS_PYDANTIC = False
 
+
+data_file = files('territories').joinpath('data/epci_to_comm.json')
+with open(str(data_file), "r") as f:
+    LEGACY_CODES: dict[str, list[str]] = json.load(f)
 
 
 logger = logging.getLogger(__name__)
@@ -549,7 +554,8 @@ class Territory:
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
             # return cls()
-        tu_ids = iter(collapse(args))
+        all_codes = tuple(collapse(args))
+        tu_ids = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
         try:
             entities_idxs = {cls.hash(tu) for tu in tu_ids}
             return Territory(*entities_idxs)
