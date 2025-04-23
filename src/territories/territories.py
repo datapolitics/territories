@@ -28,6 +28,7 @@ try:
 except ImportError:
     HAS_PYDANTIC = False
 
+
 data_file = files('territories').joinpath('data/epci_to_comm.json')
 with open(str(data_file), "r") as f:
     LEGACY_CODES: dict[str, list[str]] = json.load(f)
