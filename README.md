@@ -56,17 +56,6 @@ for article in articles:
             article.send() # send article in brief
         if territory in topic_territory:
             # do something else
-
-# filter territories in an ElasticSearch query
-query = {"ids" : {
-    "values" : ids
-    }}
-
-query['bool']['should'].extend(topic_territory.to_es_query())
-
-documents = Search(using=target.es, index=target.index)\
-        .query(query)\
-        .execute()
 ```
 
 
