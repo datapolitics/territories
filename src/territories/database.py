@@ -1,6 +1,6 @@
 import os
 try:
-    import psycopg2
+    import psycopg
 except ModuleNotFoundError:
     raise Exception("Install the postgres optional dependency to load the tree from the DB (uv add 'territories[postgres]')") from None
 
@@ -15,7 +15,7 @@ load_dotenv()
 
 
 @contextmanager
-def create_connection(database: str, connection_url:str=None):
+def create_connection(database: str, connection_url:str|None = None):
     """Yield a connection to a database.
     You need to following env. variables to use this function :
     ```
@@ -29,29 +29,25 @@ def create_connection(database: str, connection_url:str=None):
         connection_url (Optional[str]): The URL to connect to the db, as postgresql://foo@localhost:5432/bar. Will attempt to read CRAWLING_DB_URL first.
 
     Yields:
-        A psycopg2 connection object
+        A psycopg connection object
     """
     connection_url = connection_url or os.environ.get("CRAWLING_DB_URL")
 
     if connection_url:
-        result = urlparse(connection_url)
-        username = result.username
-        password = result.password
-        database = result.path[1:]
-        hostname = result.hostname
-        port = result.port
+        connection = psycopg.connect(connection_url)
     else:
         username = os.environ.get("DB_USER")
         password = os.environ.get("DB_PSWD")
         port = os.environ.get("DB_PORT")
         hostname = os.environ.get("DB_HOST")
-    connection = psycopg2.connect(
-        database=database,
-        user=username,
-        password=password,
-        host=hostname,
-        port=port
-    )
+        # will crash as this is not a valid syntax
+        connection = psycopg.connect(
+            database=database,
+            user=username,
+            password=password,
+            host=hostname,
+            port=port
+        )
     try:
         yield connection
     finally:

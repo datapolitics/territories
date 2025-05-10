@@ -1,11 +1,10 @@
 [project]
 name = "territories"
-version = "0.1.16"                                                # pass in 1.0 when the package can handle new cities (has a layer for backward copatibility)
+version = "0.1.17.dev0"                                           # pass in 1.0 when the package can handle new cities (has a layer for backward copatibility)
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
 requires-python = ">=3.10"
-
 
 dependencies = [
     "rustworkx>=0.16.0",
@@ -17,7 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0.0"]
-postgres = ["psycopg2-binary>=2.9.10"]
+postgres = ["psycopg>=3.2.0"]
 
 
 [project.urls]
