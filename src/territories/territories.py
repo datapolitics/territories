@@ -297,22 +297,7 @@ class Territory:
     def minimize(cls, node: int, items: set[int]) -> set[int]:
         """Make sure the representation of a Territory is always minimal.
         """
-        # if len(items) == 0:
-        #     return set()
-        # if node in items:
-        #     return {node}
-        # children = set(cls.tree.successor_indices(node))
-        # if children.issubset(items):
-        #     return {node}
-        # gen = (cls.minimize(child, tuple(item for item in items if cls.contains(child, item, cls.tree))) for child in children)
-        # union = set.union(*gen)
-        # if union == children:
-        #     return {node}
-        # return union
         assert isinstance(cls.tree, rx.PyDiGraph)
-
-
-        # best method
         if not items:
             return set()
         if node in items:
@@ -330,8 +315,6 @@ class Territory:
         if valids == children:
             return {node}
         return valids
-
-
 
 
     @classmethod

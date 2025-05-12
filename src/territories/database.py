@@ -15,7 +15,7 @@ load_dotenv()
 
 
 @contextmanager
-def create_connection(database: str, connection_url:str|None = None):
+def create_connection(database: str, connection_url: str | None = None):
     """Yield a connection to a database.
     You need to following env. variables to use this function :
     ```
@@ -40,14 +40,8 @@ def create_connection(database: str, connection_url:str|None = None):
         password = os.environ.get("DB_PSWD")
         port = os.environ.get("DB_PORT")
         hostname = os.environ.get("DB_HOST")
-        # will crash as this is not a valid syntax
-        connection = psycopg.connect(
-            database=database,
-            user=username,
-            password=password,
-            host=hostname,
-            port=port
-        )
+        connection_string = os.environ.get("DB_URL") or f"dbname={database} user={username} password={password} host={hostname} port={port}"
+        connection = psycopg.connect(connection_string)
     try:
         yield connection
     finally:
@@ -88,7 +82,7 @@ def read_stream(
     else:
         where = ''
     req = f"SELECT {elements} FROM {table} {where};"
-    cursor.itersize = batch_size
+    # cursor.itersize = batch_size
     cursor.execute(req, values)
     return cursor
 
