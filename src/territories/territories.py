@@ -22,8 +22,8 @@ from territories.exceptions import MissingTreeException, MissingTreeCache, NotOn
 
 try:
     from pydantic_core import CoreSchema
-    from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
     from pydantic_core import core_schema
+    from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
     HAS_PYDANTIC = True
 except ImportError:
     HAS_PYDANTIC = False
@@ -45,8 +45,8 @@ class Territory:
     The package guarantee that the representation of a territory will always be efficient.
     For instance, if I create a `Territory` object with all regions from a country, it will simplify it to only the country object.
     """
-    tree: Optional[rx.PyDiGraph] = None
-    root_index: Optional[int] = None
+    tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph() # this graph has TerritorialUnit on nodes and nothing on the edges
+    root_index: int = 0
     name_to_id: dict[str, int] = {}
 
     @staticmethod
@@ -71,7 +71,6 @@ class Territory:
             case p:
                 raise TypeError(f"Unknow terrotory type {p}")
 
-
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
@@ -88,8 +87,8 @@ class Territory:
         # I do not want to assign None to it
         # so first I destroy the reference
         del cls.tree
-        cls.tree = None
-        cls.root_index = None
+        cls.tree = rx.PyDiGraph()
+        cls.root_index = 0
         cls.name_to_id = {}
 
 
@@ -109,15 +108,13 @@ class Territory:
     @classmethod
     def load_tree(cls, filepath: Optional[str] = None):
         """Attempt to load the territorial tree from a file.
-
         If no file is provided, it will look on the API_CACHE_DIR env. variable.
 
         Args:
-            filepath (Optional[str], optional): Path to a file. Defaults to None.
+            filepath (Optional[str]): Path to a file. Defaults to None.
 
         Raises:
             MissingTreeCache: If no file is provided and the env. variable is missing
-
 
         File that can be loaded are the ones created by `Territory.save_tree()`
         """
@@ -145,8 +142,7 @@ class Territory:
 
         assert isinstance(cls.tree, rx.PyDiGraph)
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
-        names: list[str] = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
-
+        names = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
         for name in names:
             assert name == cls.hash(name).tu_id
 
@@ -311,7 +307,6 @@ class Territory:
         # return union
         assert isinstance(cls.tree, rx.PyDiGraph)
 
-
         # best method
         if not items:
             return set()
@@ -332,36 +327,48 @@ class Territory:
         return valids
 
 
-
-
     @classmethod
-    def union(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
+    def union(cls, *others: Territory | TerritorialUnit) -> Territory:
         """Returns the union of given elements as a new Territory object
-
+        
         Args:
             Any number of `territories.Territory` or `territories.TerritorialUnit` objects
-
         Returns:
             Territory: A new Territory object containing all elements
         """
-        return reduce(lambda x, y: x + y, iter(others))
+        match others:
+            case []:
+                return Territory()
+            case [x] if isinstance(x, Territory):
+                return x
+            case [x] if isinstance(x, TerritorialUnit):
+                return Territory(x)
+            case _:
+                return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in others))
 
 
     @classmethod
-    def intersection(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
+    def intersection(cls, *others: Territory | TerritorialUnit) -> Territory:
         """Returns the intersection of given elements as a new Territory object
-
+        
         Args:
             Any number of `territories.Territory` or `territories.TerritorialUnit` objects
-
         Returns:
             Territory: A new Territory object contained by all elements
         """
-        return reduce(lambda x, y: x & y, iter(others))
-
+        match others:
+            case []:
+                return Territory(cls.tree.get_node_data(cls.root_index)) # here I should return the root
+            case [x] if isinstance(x, Territory):
+                return x
+            case [x] if isinstance(x, TerritorialUnit):
+                return Territory(x)
+            case _:
+                return reduce(lambda x, y: x & y, (x if isinstance(x, Territory) else Territory(x) for x in others))
+                
 
     @classmethod
-    def LCA(cls, *others: Iterable[Territory | TerritorialUnit]) -> Optional[TerritorialUnit]:
+    def LCA(cls, *others: Territory | TerritorialUnit) -> Optional[TerritorialUnit]:
         """Return the lowest common ancestor of the given territorial units.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -381,8 +388,8 @@ class Territory:
         #     if isinstance(node, Territory) and len(node.territorial_units) == 1:
         #         tree_id = next(n.tree_id for n in node.territorial_units)
         #         return cls.tree.predecessors(tree_id).pop()
-        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
+        tus: set[TerritorialUnit] = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
+        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         match len(common_ancestors):
             case 0:
                 return None
@@ -421,7 +428,7 @@ class Territory:
 
 
     @classmethod
-    def get_parents(cls, *others: Iterable[Territory | TerritorialUnit]) -> Territory:
+    def get_parents(cls, *others: Territory | TerritorialUnit) -> Territory:
         """Return the parent of the given territorial unit.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -436,7 +443,7 @@ class Territory:
 
 
     @classmethod
-    def all_ancestors(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
+    def all_ancestors(cls, *others: Territory | TerritorialUnit) -> set[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit or territory.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -446,13 +453,13 @@ class Territory:
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
         assert isinstance(cls.tree, rx.PyDiGraph)
-        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        ancestors  = set.union(*(rx.ancestors(cls.tree, e.tree_id) for e in others))
+        tus = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
+        ancestors  = set.union(set(), *(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         return {cls.tree.get_node_data(i) for i in ancestors}
 
 
     @classmethod
-    def all_descendants(cls, *others: Iterable[Territory | TerritorialUnit]) -> set[TerritorialUnit]:
+    def all_descendants(cls, *others: Territory | TerritorialUnit) -> set[TerritorialUnit]:
         """Return a set of all descendants of every territorial unit ro territory.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -462,8 +469,8 @@ class Territory:
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
         assert isinstance(cls.tree, rx.PyDiGraph)
-        others = set.union(*({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        ancestors  = set.union(*(rx.descendants(cls.tree, e.tree_id) for e in others))
+        tus: set[TerritorialUnit] = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
+        ancestors  = set.union(set(), *(rx.descendants(cls.tree, e.tree_id) for e in tus))
         return {cls.tree.get_node_data(i) for i in ancestors}
 
 
@@ -474,7 +481,7 @@ class Territory:
         assert isinstance(cls.tree, rx.PyDiGraph)
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
             children = cls.tree.successors(a.tree_id)
-            return set.union(*(cls._sub(child, b) for child in children))
+            return set.union(set(), *(cls._sub(child, b) for child in children))
         return {a}
 
 
@@ -531,7 +538,7 @@ class Territory:
 
 
     @classmethod
-    def from_tu_ids(cls, *args: Iterable[str | Iterable[str]]) -> Territory:
+    def from_tu_ids(cls, *args: str | Iterable[str]) -> Territory:
         """Create a new Territory object from tu_ids.
 
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
@@ -549,12 +556,12 @@ class Territory:
         >>> Rhône
         ```
         """
-        if cls.tree is None: # should I raise this even in empty Territory creation ?
+        if not cls.tree: # should I raise this even in empty Territory creation ?
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
             # return cls()
-        all_codes = tuple(collapse(args))
+        all_codes: tuple[str] = tuple(collapse(args))
         tu_ids = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
         try:
             entities_idxs = {cls.hash(tu) for tu in tu_ids}
@@ -572,7 +579,7 @@ class Territory:
 
 
     @classmethod
-    def from_names(cls, *args: Iterable[str]) -> Territory:
+    def from_names(cls, *args: str) -> Territory:
         """Create a new Territory object from names
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
         Raises:
@@ -590,7 +597,7 @@ class Territory:
         ```
         """
         warnings.warn("This method is deprecated, use from_tu_ids() instead", UserWarning)
-        if cls.tree is None:
+        if not cls.tree:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         entities_idxs = (cls.hash(name) for name in args)
         try:
@@ -607,7 +614,7 @@ class Territory:
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
 
 
-    def __init__(self, *args: Iterable[TerritorialUnit]) -> None:
+    def __init__(self, *args: TerritorialUnit) -> None:
         """Create a Territory instance.
 
         A Territory is composed of one or several TerritorialUnit, that represents elements on the territorial tree.
@@ -616,15 +623,15 @@ class Territory:
         Raises:
             MissingTreeException: You can't build Territory instances if the territorial tree has not been initialized.
         """
-        if self.tree is None:
+        if not self.tree:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
-        territorial_units = set(args)
-        if territorial_units:
-            entities_idxs = {e.tree_id for e in territorial_units}
+        tus = set(args)
+        if tus:
+            entities_idxs = {e.tree_id for e in tus}
             # guarantee the Territory is always represented in minimal form
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
-            self.territorial_units: set[TerritorialUnit] = frozenset()
+            self.territorial_units: frozenset[TerritorialUnit] = frozenset()
 
 
     @property
@@ -701,7 +708,7 @@ class Territory:
 
 
     def is_disjoint(self, other: Territory) -> bool:
-        pass
+        raise NotImplemented
 
 
     def __or__(self, other: Territory | TerritorialUnit) -> Territory:
@@ -844,7 +851,7 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        ancestors = set.union(*(rx.ancestors(self.tree, e.tree_id) for e in self.territorial_units))
+        ancestors = set.union(set(), *(rx.ancestors(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
             res = res | self.territorial_units
@@ -862,7 +869,7 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no descendants")
-        descendants = set.union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
+        descendants = set.union(set(), *(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in descendants}
         if include_itself:
             res = res | self.territorial_units
