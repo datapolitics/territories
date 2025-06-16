@@ -36,7 +36,6 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
-    "psycopg2-binary>=2.9.10",
     "pydantic>=2.10.6",
     "pytest>=8.3.4",
     "pytest-benchmark>=5.1.0",
