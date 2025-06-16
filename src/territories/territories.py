@@ -101,7 +101,6 @@ class Territory:
             raise Exception("The data is not a valid territorial tree.")
         if checksum != CHECKSUM:
             raise Exception("The data is not a valid territorial tree.")
-        assert isinstance(cls.tree, rx.PyDiGraph)
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
 
 
@@ -140,7 +139,6 @@ class Territory:
         except FileNotFoundError:
             raise MissingTreeCache(f"Tree object was not found at {path}")
 
-        assert isinstance(cls.tree, rx.PyDiGraph)
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
         names = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
         for name in names:
@@ -272,9 +270,7 @@ class Territory:
         Returns:
             list[TerritorialUnit]: list of TerritorialUnit objects that are children of the given TerritorialUnit.
         """
-        assert isinstance(tu, TerritorialUnit)
         assert tu.tree_id is not None
-        assert isinstance(cls.tree, rx.PyDiGraph)
         return cls.tree.successors(tu.tree_id)
 
 
@@ -293,7 +289,6 @@ class Territory:
     def minimize(cls, node: int, items: set[int]) -> set[int]:
         """Make sure the representation of a Territory is always minimal.
         """
-        assert isinstance(cls.tree, rx.PyDiGraph)
         if not items:
             return set()
         if node in items:
@@ -314,7 +309,7 @@ class Territory:
 
 
     @classmethod
-    def union(cls, *others: Territory | TerritorialUnit) -> Territory:
+    def union(cls, *others: Territory | TerritorialUnit) -> Territory: # make this also receive Iterable[Territory | TerritorialUnit]
         """Returns the union of given elements as a new Territory object
         
         Args:
@@ -365,7 +360,6 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        assert isinstance(cls.tree, rx.PyDiGraph)
         # not necessary, maybe better performance for small territories
         # if len(others) == 1:
         #     node = others[0]
@@ -407,7 +401,6 @@ class Territory:
             Optional[TerritorialUnit]: A TerritorialUnit object being the parent of the given territorial unit. None if the territorial unit has no parent.
         """
         try:
-            assert isinstance(cls.tree, rx.PyDiGraph)
             return cls.tree.predecessors(other.tree_id).pop()
         except IndexError:
             return None
@@ -423,7 +416,6 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no parent")
-        assert isinstance(cls.tree, rx.PyDiGraph)
         parent_tus = collapse(cls.tree.predecessors(node.tree_id) for node in collapse(others))
         return Territory(*parent_tus)
 
@@ -438,7 +430,6 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        assert isinstance(cls.tree, rx.PyDiGraph)
         tus = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(set(), *(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         return {cls.tree.get_node_data(i) for i in ancestors}
@@ -454,7 +445,6 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        assert isinstance(cls.tree, rx.PyDiGraph)
         tus: set[TerritorialUnit] = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(set(), *(rx.descendants(cls.tree, e.tree_id) for e in tus))
         return {cls.tree.get_node_data(i) for i in ancestors}
@@ -464,7 +454,6 @@ class Territory:
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return set()
-        assert isinstance(cls.tree, rx.PyDiGraph)
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
             children = cls.tree.successors(a.tree_id)
             return set.union(set(), *(cls._sub(child, b) for child in children))
