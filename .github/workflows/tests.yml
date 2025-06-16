@@ -10,6 +10,9 @@ jobs:
   test:
     name: python
     runs-on: ubuntu-latest
+    env:
+      UV_INDEX_DATAPOLITICS_USERNAME: datapolitics
+      UV_INDEX_DATAPOLITICS_PASSWORD: ${{ secrets.PYPI_PSWD }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
