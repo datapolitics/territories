@@ -117,8 +117,14 @@ def test_from_tu_ids():
         _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo", "Pantin"])
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
         _ = Territory.from_tu_ids({"not exist", "Rhône"})
-
-
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids(5)
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids(["Rhône", 5, "Pantin"])
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids("Rhône", 5, "yolo")
+        
+        
 def test_from_name():
     Territory.assign_tree(tree)
     new = Territory.from_name("Pantin")

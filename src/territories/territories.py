@@ -512,8 +512,15 @@ class Territory:
         return cls.hash(tu_id)
 
 
+    @staticmethod
+    def assert_string(name: Any) -> str:
+        if not isinstance(name, str):
+            raise TypeError(f"tu_ids are string, you provided a {type(name).__name__} : {name}")
+        return name
+
+
     @classmethod
-    def from_tu_ids(cls, *args: str | Iterable[str]) -> Territory:
+    def from_tu_ids(cls, *args: str | Iterable[str | Iterable[str]]) -> Territory:
         """Create a new Territory object from tu_ids.
 
         Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
@@ -536,7 +543,7 @@ class Territory:
         if not args:
             raise TypeError("`from_tu_ids()` needs at least one arguments")
             # return cls()
-        all_codes: tuple[str] = tuple(collapse(args))
+        all_codes: tuple[str, ...] = tuple(cls.assert_string(s) for s in collapse(args))
         tu_ids = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
         try:
             entities_idxs = {cls.hash(tu) for tu in tu_ids}
