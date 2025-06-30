@@ -523,9 +523,9 @@ class Territory:
     def from_tu_ids(cls, *args: str | Iterable[str | Iterable[str]]) -> Territory:
         """Create a new Territory object from tu_ids.
 
-        Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
+        Currently names are codes like **COM:2894** or **DEP:69** 😏.
         Raises:
-            NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
+            NotOnTreeError: Raise an exception if one  or more names are not a valid code on the territorial tree.
 
         Returns:
             Territory: Territory object with territories associated with the given names.
@@ -563,9 +563,9 @@ class Territory:
     @classmethod
     def from_names(cls, *args: str) -> Territory:
         """Create a new Territory object from names
-        Currently names are ElasticSearch code, like **COM:2894** or **DEP:69** 😏.
+        Currently names are codes like **COM:2894** or **DEP:69** 😏.
         Raises:
-            NotOnTreeError: Raise an exception if one  or more names are not an ElasticSearch code on the territorial tree.
+            NotOnTreeError: Raise an exception if one  or more names are not a valid code on the territorial tree.
 
         Returns:
             Territory: Territory object with territories associated with the given names.
