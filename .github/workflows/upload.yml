@@ -14,7 +14,7 @@ permissions:
 jobs:
   pypi-publish:
     name: python
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     env:
       DEPLOY_BRANCHES: "refs/heads/main"
       UV_INDEX_DATAPOLITICS_USERNAME: datapolitics
