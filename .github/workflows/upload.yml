@@ -23,17 +23,8 @@ jobs:
       UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PSWD }}
 
     steps:
-      - uses: actions/checkout@v4 # it apparently pull the default branch, not the one the workflow was initiated from ??
-      - uses: astral-sh/setup-uv@v6
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: "pyproject.toml"
-          
-      # - name: Install the project & run tests
-      #   run: |
-      #     uv sync --all-extras --dev
-      #     uv run pytest
-      
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6 # uv build does not need a python install      
       - name: Upload package
         run: |
           uv build
