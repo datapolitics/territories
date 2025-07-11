@@ -110,6 +110,10 @@ def test_union():
     hu = Territory(paris, nogent) | Territory(pantin, lyon)
     assert h == hu
 
+    assert Territory.union(a, d) == Territory(sud)
+    assert Territory.union([a, d]) == Territory(sud)
+    assert Territory.union({a, d}) == Territory(sud)
+
 
 def test_intersection():
     Territory.assign_tree(tree)

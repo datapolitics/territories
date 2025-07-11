@@ -309,7 +309,7 @@ class Territory:
 
 
     @classmethod
-    def union(cls, *others: Territory | TerritorialUnit) -> Territory: # make this also receive Iterable[Territory | TerritorialUnit]
+    def union(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the union of given elements as a new Territory object
         
         Args:
@@ -317,19 +317,20 @@ class Territory:
         Returns:
             Territory: A new Territory object containing all elements
         """
-        match others:
-            case []:
-                return Territory()
-            case [x] if isinstance(x, Territory):
+        args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
+        match args:
+            case ():
+                return Territory() # PyRight is wrong, this is run when args is an empty tuple
+            case (x, ) if isinstance(x, Territory):
                 return x
-            case [x] if isinstance(x, TerritorialUnit):
+            case (x, ) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
-                return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in others))
+                return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in args))
 
 
     @classmethod
-    def intersection(cls, *others: Territory | TerritorialUnit) -> Territory:
+    def intersection(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the intersection of given elements as a new Territory object
         
         Args:
@@ -337,15 +338,16 @@ class Territory:
         Returns:
             Territory: A new Territory object contained by all elements
         """
-        match others:
-            case []:
-                return Territory(cls.tree.get_node_data(cls.root_index)) # here I should return the root
-            case [x] if isinstance(x, Territory):
+        args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
+        match args:
+            case (): # PyRight is wrong, this is run when args is an empty tuple
+                return Territory(cls.tree.get_node_data(cls.root_index))
+            case (x, ) if isinstance(x, Territory):
                 return x
-            case [x] if isinstance(x, TerritorialUnit):
+            case (x, ) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
-                return reduce(lambda x, y: x & y, (x if isinstance(x, Territory) else Territory(x) for x in others))
+                return reduce(lambda x, y: x & y, (x if isinstance(x, Territory) else Territory(x) for x in args))
                 
 
     @classmethod
@@ -725,6 +727,10 @@ class Territory:
             return Territory()
 
         return Territory.intersection(*(self - child for child in other.territorial_units))
+
+
+    def __hash__(self):
+        return hash(self.territorial_units)
 
 
     def __json__(self):
