@@ -74,6 +74,10 @@ def load_tree():
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
 
+def test_imports():
+    from territories import MissingTreeException, MissingTreeCache, NotOnTreeError, TerritorialUnit, Partition, Territory
+
+
 def test_creation():
     Territory.reset()
     with pytest.raises(MissingTreeException):

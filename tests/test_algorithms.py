@@ -1,7 +1,5 @@
 import rustworkx as rx
 
-from itertools import product
-
 from territories import Territory
 from territories.partitions import TerritorialUnit, Partition
 

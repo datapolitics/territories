@@ -1,5 +1,4 @@
 import gzip
-import pytest
 
 from territories import Territory
 
