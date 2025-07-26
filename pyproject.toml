@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.1.19.dev1"                                           # pass in 1.0 when the package can handle new cities (has a layer for backward copatibility)
+version = "0.2.0"                                           # pass in 1.0 when the package can handle new cities (has a layer for backward copatibility)
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
@@ -16,8 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0.0"]
-postgres = ["psycopg>=3.2.0"]
-
+async = ["aioitertools>=0.12.0"]
 
 [project.urls]
 Homepage = "https://github.com/datapolitics/territories"
@@ -36,8 +35,11 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "asyncpg>=0.30.0",
     "ipykernel>=6.29.5",
+    "psycopg>=3.2.9",
     "pydantic>=2.10.6",
+    "pytest-asyncio>=1.1.0",
     "pytest>=8.3.4",
     "pytest-benchmark>=5.1.0",
 ]

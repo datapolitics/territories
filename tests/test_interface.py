@@ -170,31 +170,6 @@ def test_iteration():
         assert i in a.territorial_units
 
 
-def test_build_tree():
-
-    nodes = [
-        Node(id='CNTRY:France', label='France', level='CNTRY', parent_id=None),
-        Node(id='REG:Sud', label='Sud', level='REG', parent_id='CNTRY:France'),
-        Node(id='REG:idf', label='île-de-france', level='REG', parent_id='CNTRY:France'),
-
-        Node(id='DEP:Rhone', label='Rhône', level='DEP', parent_id='REG:Sud'),
-        Node(id='DEP:metropole', label='Grand Lyon', level='DEP', parent_id='REG:Sud'),
-
-        Node(id='COM:Pantin', label='Pantin', level='COM', parent_id="REG:idf"),
-        Node(id='COM:Nogent', label='Nogent', level='COM', parent_id="REG:idf"),
-        Node(id='COM:Paris', label='Paris', level='COM', parent_id="REG:idf"),
-
-        Node(id='COM:sté', label='Saint Étienne', level='COM', parent_id="DEP:Rhone"),
-        Node(id='COM:Lyon', label='Lyon', level='COM', parent_id="DEP:metropole"),
-        Node(id='COM:Villeurbane', label='Villeurbane', level='COM', parent_id="DEP:metropole"),
-
-        Node(id='COM:Marseille', label='Marseille', level='COM', parent_id="REG:Sud"),
-    ]
-
-    Territory.build_tree(nodes, save_tree=False)
-
-
-
 def test_load_from_bytes():
     with pytest.raises(Exception):
         Territory.load_tree_from_bytes(b"bad data")

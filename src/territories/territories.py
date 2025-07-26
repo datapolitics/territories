@@ -4,6 +4,7 @@ import os
 import json
 import pickle
 import logging
+from typing_extensions import AsyncIterable
 import json_fix
 import warnings
 
@@ -173,6 +174,74 @@ class Territory:
             raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
 
 
+    @classmethod
+    async def async_build_tree(cls, async_data_stream: AsyncIterable[Node], save_tree = True, filepath: Optional[str] = None):
+        """Build the territorial tree from a stream of objects.
+        You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
+
+        The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
+
+        Args:
+            async_data_stream (AsyncIterable[Node]): An iterable of objects to add on the tree.
+            save_tree (bool, optional): Save to disk the constructed tree. Defaults to True.
+            filepath (Optional[str], optional): File path to save the tree state to. If not provided, API_CACHE_DIR env. var. will be used. Defaults to None.
+        """
+        try:
+            from aioitertools.more_itertools import chunked
+        except (ModuleNotFoundError, ImportError):
+            raise Exception("Install the async optional dependency to load the tree from an async iterator (uv add 'territories[async]')") from None
+
+        cls.reset()
+
+        tree = rx.PyDiGraph()
+        mapper = {}
+        orphans: list[OrphanNode] = []
+        batch_size = 1024
+        OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
+        async for batch in chunked(async_data_stream, batch_size):
+            entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
+
+            for node, tree_idx in zip(batch, entities_indices):
+                if not tree.get_node_data(tree_idx).atomic:
+                    mapper[node.id] = tree_idx
+                object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
+
+            edges = []
+            for node, tree_idx in zip(batch, entities_indices):
+                if node.parent_id in mapper:
+                    edges.append((mapper[node.parent_id], tree_idx, None))
+                else:
+                    if node.parent_id: # do not append root node to orphans
+                        # object.__setattr__(node, 'tree_id', tree_idx)
+                        # orphans.append(node)
+
+                        # this is a lot more expensive than updating the node object
+                        # but we have no guarantee that it is mutable (can be a tuple)
+                        orphan = OrphanNode(
+                            id=node.id,
+                            parent_id=node.parent_id,
+                            label=node.label,
+                            level=node.level,
+                            tree_id=tree_idx
+                            )
+                        orphans.append(orphan)
+                    tree.add_edges_from(edges)
+        
+        edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        tree.add_edges_from(edges)
+
+        last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+        if last_orphans:
+            logger.warning(f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}")
+
+        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
+        cls.tree = tree
+        cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+
+        if save_tree:
+            cls.save_tree(filepath=filepath)
+                    
+                    
     @classmethod
     def build_tree(cls, data_stream: Iterable[Node], save_tree = True, filepath: Optional[str] = None):
         """Build the territorial tree from a stream of objects.

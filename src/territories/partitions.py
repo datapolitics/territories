@@ -5,7 +5,7 @@ import json_fix
 import rustworkx as rx
 
 from enum import Enum
-from typing import Optional
+from typing import Optional, Protocol, runtime_checkable
 from dataclasses import dataclass, field, asdict
 
 
@@ -51,16 +51,27 @@ class Partition(Enum):
         return NotImplemented
 
 
+@runtime_checkable
+class Node(Protocol):
+    @property
+    def id(self) -> str: ...
+    
+    @property
+    def label(self) -> str: ...
+    
+    @property
+    def level(self) -> str: ...
+    
+    @property
+    def parent_id(self) -> Optional[str]: ...
+    
+    # @property
+    # def postal_code(self) -> Optional[str]: ...
+    
+    # @property
+    # def inhabitants(self) -> Optional[int]: ...
 
-@dataclass(frozen=True)
-class Node:
-    id: str
-    label: str
-    level: str
-    parent_id: Optional[str] = None
-    postal_code: Optional[str] = None
-    inhabitants: Optional[int] = None
-    tree_id: Optional[int] = None
+    
 
 
 

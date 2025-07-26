@@ -6,9 +6,10 @@ __all__ = [
     "MissingTreeException",
     "MissingTreeCache",
     "NotOnTreeError",
+    "Node"
 ]
 
 
 from .territories import Territory
-from .partitions import TerritorialUnit, Partition
+from .partitions import TerritorialUnit, Partition, Node
 from .exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError
