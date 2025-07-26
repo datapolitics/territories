@@ -68,6 +68,16 @@ f = Territory(idf, marseille, metropole)
 exemples = (a, b, c, d, e, f)
 
 
+@pytest.fixture
+def load_tree():
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
+
+
+def test_imports():
+    from territories import MissingTreeException, MissingTreeCache, NotOnTreeError, TerritorialUnit, Partition, Territory
+
+
 def test_creation():
     Territory.reset()
     with pytest.raises(MissingTreeException):
@@ -76,6 +86,7 @@ def test_creation():
         Territory.from_tu_ids("DEP:69")
     Territory.assign_tree(tree)
     Territory()
+
 
 @pytest.mark.filterwarnings("ignore:This method is deprecated")
 def test_from_names():
@@ -117,8 +128,14 @@ def test_from_tu_ids():
         _ = Territory.from_tu_ids(["not exist", "Rhône", "yolo", "Pantin"])
     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
         _ = Territory.from_tu_ids({"not exist", "Rhône"})
-
-
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids(5)
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids(["Rhône", 5, "Pantin"])
+    with pytest.raises(TypeError, match='tu_ids are string, you provided a int : 5'):
+        _ = Territory.from_tu_ids("Rhône", 5, "yolo")
+        
+        
 def test_from_name():
     Territory.assign_tree(tree)
     new = Territory.from_name("Pantin")
@@ -130,61 +147,35 @@ def test_from_name():
 
 def test_union():
     Territory.assign_tree(tree)
-    t = Territory.union(c, f, a)
-    assert t == Territory(france)
+    assert Territory(france) == Territory.union(c, f, a)
+    assert Territory(france) == Territory.union([c, f, a])
+    assert Territory(france) == Territory.union({c, f, a})
+    assert Territory(france) == Territory.union(c, [f, a])
+    assert Territory(france) == Territory.union((c, f), a)
 
 
 def test_intersection():
     Territory.assign_tree(tree)
-
-    t = Territory.intersection(b, c, d)
-    assert t == Territory(metropole)
-    t = Territory.intersection(c, b, e, f)
-    assert t == Territory(metropole, idf)
-
-
+    assert Territory(metropole) == Territory.intersection(b, c, d)
+    assert Territory(metropole, idf) == Territory.intersection(c, b, e, f)
+    assert Territory(metropole) == Territory.intersection([b, c, d])
+    assert Territory(metropole, idf) == Territory.intersection({c, b, e, f})
+    assert Territory(metropole) == Territory.intersection(b, (c, d))
+    assert Territory(metropole, idf) == Territory.intersection([c, b, e], f)
+    
+    
 def test_iteration():
     Territory.assign_tree(tree)
-
     for i in a:
         assert i in a.territorial_units
 
 
-def test_build_tree():
-
-    nodes = [
-        Node(id='CNTRY:France', label='France', level='CNTRY', parent_id=None),
-        Node(id='REG:Sud', label='Sud', level='REG', parent_id='CNTRY:France'),
-        Node(id='REG:idf', label='île-de-france', level='REG', parent_id='CNTRY:France'),
-
-        Node(id='DEP:Rhone', label='Rhône', level='DEP', parent_id='REG:Sud'),
-        Node(id='DEP:metropole', label='Grand Lyon', level='DEP', parent_id='REG:Sud'),
-
-        Node(id='COM:Pantin', label='Pantin', level='COM', parent_id="REG:idf"),
-        Node(id='COM:Nogent', label='Nogent', level='COM', parent_id="REG:idf"),
-        Node(id='COM:Paris', label='Paris', level='COM', parent_id="REG:idf"),
-
-        Node(id='COM:sté', label='Saint Étienne', level='COM', parent_id="DEP:Rhone"),
-        Node(id='COM:Lyon', label='Lyon', level='COM', parent_id="DEP:metropole"),
-        Node(id='COM:Villeurbane', label='Villeurbane', level='COM', parent_id="DEP:metropole"),
-
-        Node(id='COM:Marseille', label='Marseille', level='COM', parent_id="REG:Sud"),
-    ]
-
-    Territory.build_tree(nodes, save_tree=False)
-
-
 def test_load_from_bytes():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
     with pytest.raises(Exception):
         Territory.load_tree_from_bytes(b"bad data")
 
-def test_sort_tus():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
+def test_sort_tus(load_tree):
     names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
     sorted_names = ("CNTRY:F", "DEP:69", "DEP:75", "COM:69132")
     tus = [Territory.from_name(name) for name in names]
@@ -192,10 +183,7 @@ def test_sort_tus():
     assert tus == [Territory.from_name(name) for name in sorted_names]
 
 
-def test_type():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
+def test_type(load_tree):
     names = ("COM:69132", "DEP:75", "CNTRY:F", "DEP:69")
     ter = Territory.from_tu_ids(*names)
     assert ter.type == Partition.CNTRY
@@ -203,10 +191,7 @@ def test_type():
     assert empty.type == Partition.EMPTY
 
 
-def test_parents():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
+def test_parents(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132")
     assert ter.parents() == Territory.from_tu_ids("REG:84")
 
@@ -230,30 +215,21 @@ def test_creation_benchmark(benchmark):
     benchmark.pedantic(Territory.from_tu_ids, setup=setup, rounds=10)
 
 
-def test_tu_ids():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
+def test_tu_ids(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_ids == ["DEP:69", "DEP:75"] # the order must be deterministic
 
 
-def test_tu_names():
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
+def test_tu_names(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_names == ["Rhône", "Paris"] # the order must be deterministic
 
 
-def test_pydantic():
+def test_pydantic(load_tree):
     from pydantic import BaseModel
 
     class TerritoryModel(BaseModel):
         terr: Territory
-
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
     tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
 
@@ -265,3 +241,13 @@ def test_pydantic():
     TerritoryModel(terr=("DEP:69", "COM:69132"))
     TerritoryModel(terr=tus)
     TerritoryModel(terr=[])
+
+
+def test_hash(load_tree):
+    """this test mobilize every test before"""
+    print(Territory.from_tu_ids("REG:11", "DEP:69"))
+    # assert hash(Territory(france)) == hash(Territory.union([c, f, a]))
+    # assert hash(Territory(metropole)) == hash(Territory.intersection([b, c, d]))
+    assert hash(Territory.get_parent(Territory.from_name("DEP:69"))) == hash(Territory.from_name("REG:84"))
+    assert hash(Territory.from_tu_ids("DEP:75", "COM:69132").parents()) == hash(Territory.from_tu_ids("REG:11", "DEP:69"))
+    

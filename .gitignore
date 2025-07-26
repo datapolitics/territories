@@ -166,3 +166,5 @@ cython_debug/
 *.pickle
 *.csv
 tree_large.txt
+
+.benchmarks/
