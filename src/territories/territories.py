@@ -16,7 +16,7 @@ from collections import namedtuple
 from importlib.resources import files
 from functools import lru_cache, reduce
 from typing import Any, Iterable, Optional
-from more_itertools import batched, collapse
+from more_itertools import batched, collapse, flatten
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
@@ -937,8 +937,8 @@ class Territory:
         return self.get_parents(self)
 
 
-    # def children(self) -> list[Territory]:
-    #     return [Territory(child) for child in sorted(self)]
+    def children(self) -> list[TerritorialUnit]:
+        return list(flatten(self.tree.successors(node.tree_id) for node in self))
 
 
     def is_empty(self) -> bool:

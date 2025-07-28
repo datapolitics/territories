@@ -202,6 +202,20 @@ def test_parents(load_tree):
     assert Territory.get_parent(tu) == Territory.from_name("REG:84")
 
 
+def test_children(load_tree):
+    cntr = Territory.from_tu_ids("CNTRY:F")
+    assert all(t.level == Partition.REG for t in cntr.children())
+        
+    reg = Territory.from_tu_ids("REG:11")
+    assert all(t.level == Partition.DEP for t in reg.children())
+
+    dep = Territory.from_tu_ids("DEP:69")
+    assert all(t.level == Partition.COM for t in dep.children())
+
+    child_union = set(reg.children() + dep.children())
+    assert child_union == set((reg | dep).children())
+
+
 def setup():
     s = sample(Territory.tree.nodes(), 1000)
     ter = Territory.from_tu_ids(*(ter.tu_id for ter in s))
