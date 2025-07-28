@@ -29,7 +29,6 @@ class NodeTuple:
 load_dotenv()
 
 
-
 @contextmanager
 def create_connection(database: str, connection_url: str | None = None):
     """Yield a connection to a database.

@@ -937,6 +937,10 @@ class Territory:
         return self.get_parents(self)
 
 
+    # def children(self) -> list[Territory]:
+    #     return [Territory(child) for child in sorted(self)]
+
+
     def is_empty(self) -> bool:
         """
         Returns:
