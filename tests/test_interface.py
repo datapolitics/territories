@@ -3,7 +3,7 @@ import pytest
 
 import rustworkx as rx
 
-from random import sample
+from random import sample, choice
 from territories import Territory, NotOnTreeError, MissingTreeException
 from territories.partitions import TerritorialUnit, Partition, Node
 
@@ -216,17 +216,35 @@ def test_children(load_tree):
     assert child_union == set((reg | dep).children())
 
 
-def setup():
+def setup_large():
     s = sample(Territory.tree.nodes(), 1000)
-    ter = Territory.from_tu_ids(*(ter.tu_id for ter in s))
+    ter = Territory(*s)
     names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
     return names, {}
 
 
-def test_creation_benchmark(benchmark):
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_tu_ids, setup=setup, rounds=10)
+def setup_small():
+    ter = Territory(choice(Territory.tree.nodes()))
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
+    return names, {}
+
+
+def test_creation_large(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_large, rounds=10)
+    
+    
+def test_creation_small(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_small, rounds=1000)
+
+
+def setup_minimized():
+    ter = Territory(*sample(Territory.tree.nodes(), 4))
+    names = [tu.tu_id for tu in ter]
+    return names, {}
+
+
+def test_creation_already_minimized(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_minimized, rounds=100)
 
 
 def test_tu_ids(load_tree):

@@ -4,7 +4,6 @@ import os
 import json
 import pickle
 import logging
-from typing_extensions import AsyncIterable
 import json_fix
 import warnings
 
@@ -15,8 +14,8 @@ from itertools import chain
 from collections import namedtuple
 from importlib.resources import files
 from functools import lru_cache, reduce
-from typing import Any, Iterable, Optional
 from more_itertools import batched, collapse, flatten
+from typing import Any, Iterable, Optional, AsyncIterable
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
