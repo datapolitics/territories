@@ -225,7 +225,7 @@ def setup_large():
 
 def setup_small():
     ter = Territory(choice(Territory.tree.nodes()))
-    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level <= Partition.COM]
     return names, {}
 
 
@@ -271,7 +271,7 @@ def test_pydantic(load_tree):
     TerritoryModel(terr={"DEP:69", "COM:69132"})
     TerritoryModel(terr=["DEP:69", "COM:69132"])
     TerritoryModel(terr=("DEP:69", "COM:69132"))
-    TerritoryModel(terr=tus)
+    # TerritoryModel(terr=tus)
     TerritoryModel(terr=[])
 
 

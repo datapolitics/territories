@@ -20,14 +20,18 @@ At startup, you need to initialize a tree of all known entities. Ths can be done
 
 
 ```python
-from territories import Territory, MissingTreeCache
-from territories.database import create_connection, stream_tu_table
+from territories import Territory, MissingTreeCache, Node
 
-try:
-    Territory.load_tree()
-except MissingTreeCache:
-    with create_connection("crawling") as cnx:
-        Territory.build_tree(data_stream=stream_tu_table(cnx))
+async def init_tree():
+    try:
+        Territory.load_tree()
+    except MissingTreeCache:
+        print("No cache, loading territory tree from db")
+        engine = create_async_engine(url=db_settings.CRAWLING_DATABASE_URI)
+        async with engine.connect() as cnx:
+            tu_stream: AsyncResult[Node] = await cnx.stream(text("SELECT * FROM tu"))
+            await Territory.async_build_tree(async_data_stream=tu_stream)
+
 ```
 
 The `build_tree()` function will read the TU table, and create a territory tree out of it, with all its 35099 elements
@@ -61,7 +65,6 @@ for article in articles:
 
 ## The pydantic feature
 
-
 Territories are valid Pydantic types. It means you can validate input data with type hints ; in a web server for instance. Exemples to come.
 
 
@@ -80,7 +83,6 @@ This package depends on [uv](https://docs.astral.sh/uv/getting-started/installat
 
 The tests checks the behavior of **Territory** objects. You can change whatever you want internaly as long as the tests passes.
 The tests relies on the **full_territorial_tree.gzip** file to load a territorial tree. If you need to update it, please use the `test_build_tree.py` file.
-
 
 
 ## Deployment

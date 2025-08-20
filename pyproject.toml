@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.2.2" # pass in 1.0 when the package can handle new cities (has a layer for backward copatibility)
+version = "0.2.2"
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"

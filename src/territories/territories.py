@@ -21,8 +21,7 @@ from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
 
 try:
-    from pydantic_core import CoreSchema
-    from pydantic_core import core_schema
+    from pydantic_core import CoreSchema, core_schema
     from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
     HAS_PYDANTIC = True
 except ImportError:
@@ -175,7 +174,10 @@ class Territory:
 
     @classmethod
     async def async_build_tree(cls, async_data_stream: AsyncIterable[Node], save_tree = True, filepath: Optional[str] = None):
-        """Build the territorial tree from a stream of objects.
+        """Build the territorial tree from an async stream of objects.
+        
+        **require the async optional dependency (uv add 'territories[async]')**
+        
         You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
         The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
@@ -817,34 +819,18 @@ class Territory:
         @classmethod
         def __get_pydantic_core_schema__(
             cls,
-            _source_type: Any,
-            _handler: GetCoreSchemaHandler
+            source_type: Any,
+            handler: GetCoreSchemaHandler
         ) -> CoreSchema:
             """This is used by Pydantic to generate the schema for the Territory class.
             It needs to handle all possible ways to create a Territory object.
             """
             return core_schema.union_schema([
-                # Handle Territory instances directly
-                core_schema.is_instance_schema(Territory),
-                # Handle strings (parse them as territory IDs)
-                # core_schema.chain_schema([
-                #     core_schema.str_schema(),
-                #     core_schema.no_info_plain_validator_function(cls._try_parse)
-                # ]),
-                # Handle lists/iterables of strings (parse as multiple territory IDs)
-                core_schema.chain_schema([
-                    core_schema.list_schema(core_schema.str_schema()),
-                    core_schema.no_info_plain_validator_function(
-                        lambda v: cls.from_tu_ids(v)
-                    )
-                ]),
-                # Handle lists/iterables of TerritorialUnit instances
-                core_schema.chain_schema([
-                    core_schema.list_schema(core_schema.is_instance_schema(TerritorialUnit)),
-                    core_schema.no_info_plain_validator_function(
-                        lambda v: cls(*v)
-                    )
-                ])
+                core_schema.list_schema(core_schema.str_schema()),
+                core_schema.is_instance_schema(cls),
+                core_schema.no_info_plain_validator_function(
+                    lambda v: cls.from_tu_ids(v)
+                )
             ])
 
         # this crash with some validators. Needs to be tested
