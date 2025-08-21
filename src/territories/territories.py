@@ -707,6 +707,17 @@ class Territory:
 
 
     @property
+    def tu_path(self) -> list[str]:
+        """Return the tu_ids of every territorial units in and above the territory.
+
+        Returns:
+            list[str]: List of tu_ids
+        """
+        # sort the territories to get deterministic behavior
+        return [e.tu_id for e in sorted(self.ancestors(include_itself=True))]
+
+
+    @property
     def tu_names(self) -> list[str]:
         """Return the names of every territorial units in the territory.
 
