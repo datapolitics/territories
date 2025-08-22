@@ -9,6 +9,7 @@ import warnings
 
 import rustworkx as rx
 
+from enum import Enum
 from pathlib import Path
 from itertools import chain
 from collections import namedtuple
@@ -836,13 +837,41 @@ class Territory:
             """This is used by Pydantic to generate the schema for the Territory class.
             It needs to handle all possible ways to create a Territory object.
             """
-            return core_schema.union_schema([
-                core_schema.list_schema(core_schema.str_schema()),
+            # parse incoming values into Territory
+            def validate(value: Any):
+                if isinstance(value, cls):
+                    return value
+                # accept list of string ids
+                if isinstance(value, list):
+                    return cls.from_tu_ids(value)
+                # accept a single string id
+                if isinstance(value, str):
+                    return cls.from_tu_ids(value)
+                raise TypeError(f"Cannot build {cls.__name__} from {type(value)!r}")
+    
+            def serialize(value: Territory):
+                out = []
+                for tu in value:
+                    # ensure we turn each TerritorialUnit into primitives:
+                    d = tu.to_dict()
+                    d["level"] = d["level"].name
+                    out.append(d)
+                return out
+    
+            allowed_schema = core_schema.union_schema([
+                core_schema.list_schema(core_schema.str_schema()),   # accept ["DEP:69", ...]
                 core_schema.is_instance_schema(cls),
-                core_schema.no_info_plain_validator_function(
-                    lambda v: cls.from_tu_ids(v)
-                )
             ])
+    
+            # use an *after* validator so we can attach the serializer to the schema
+            return core_schema.no_info_after_validator_function(
+                validate,
+                allowed_schema,
+                serialization=core_schema.plain_serializer_function_ser_schema(
+                    serialize,
+                    when_used="json"
+                ),
+            )
 
         # this crash with some validators. Needs to be tested
         @classmethod

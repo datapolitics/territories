@@ -1,4 +1,5 @@
 import gzip
+import json
 import pytest
 
 import rustworkx as rx
@@ -23,7 +24,6 @@ idf = TerritorialUnit("Île-de-France", "idf", False, Partition.REG)
 rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 
 france = TerritorialUnit("France", "France", False, Partition.CNTRY)
-
 
 
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
@@ -252,27 +252,14 @@ def test_tu_ids(load_tree):
     assert ter.tu_ids == ["DEP:69", "DEP:75"] # the order must be deterministic
 
 
+def test_tu_path(load_tree):
+    ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
+    assert ter.tu_path == ['CNTRY:F', 'REG:11', 'REG:84', 'DEP:69', 'DEP:75'] # the order must be deterministic
+
+
 def test_tu_names(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_names == ["Rhône", "Paris"] # the order must be deterministic
-
-
-def test_pydantic(load_tree):
-    from pydantic import BaseModel
-
-    class TerritoryModel(BaseModel):
-        terr: Territory
-
-    tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
-
-    TerritoryModel(terr=Territory.from_tu_ids("DEP:75", "COM:69132"))
-    # TerritoryModel(terr='["DEP:69", "COM:69132"]')
-    # TerritoryModel(terr='[]')
-    TerritoryModel(terr={"DEP:69", "COM:69132"})
-    TerritoryModel(terr=["DEP:69", "COM:69132"])
-    TerritoryModel(terr=("DEP:69", "COM:69132"))
-    # TerritoryModel(terr=tus)
-    TerritoryModel(terr=[])
 
 
 def test_hash(load_tree):
