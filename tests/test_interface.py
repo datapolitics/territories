@@ -1,9 +1,10 @@
 import gzip
+import json
 import pytest
 
 import rustworkx as rx
 
-from random import sample
+from random import sample, choice
 from territories import Territory, NotOnTreeError, MissingTreeException
 from territories.partitions import TerritorialUnit, Partition, Node
 
@@ -23,7 +24,6 @@ idf = TerritorialUnit("Île-de-France", "idf", False, Partition.REG)
 rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 
 france = TerritorialUnit("France", "France", False, Partition.CNTRY)
-
 
 
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
@@ -216,17 +216,35 @@ def test_children(load_tree):
     assert child_union == set((reg | dep).children())
 
 
-def setup():
+def setup_large():
     s = sample(Territory.tree.nodes(), 1000)
-    ter = Territory.from_tu_ids(*(ter.tu_id for ter in s))
+    ter = Territory(*s)
     names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level == Partition.COM]
     return names, {}
 
 
-def test_creation_benchmark(benchmark):
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-    benchmark.pedantic(Territory.from_tu_ids, setup=setup, rounds=10)
+def setup_small():
+    ter = Territory(choice(Territory.tree.nodes()))
+    names = [tu.tu_id for tu in ter.descendants(include_itself=True) if tu.level <= Partition.COM]
+    return names, {}
+
+
+def test_creation_large(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_large, rounds=10)
+    
+    
+def test_creation_small(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_small, rounds=1000)
+
+
+def setup_minimized():
+    ter = Territory(*sample(Territory.tree.nodes(), 4))
+    names = [tu.tu_id for tu in ter]
+    return names, {}
+
+
+def test_creation_already_minimized(load_tree, benchmark):
+    benchmark.pedantic(Territory.from_tu_ids, setup=setup_minimized, rounds=100)
 
 
 def test_tu_ids(load_tree):
@@ -234,27 +252,14 @@ def test_tu_ids(load_tree):
     assert ter.tu_ids == ["DEP:69", "DEP:75"] # the order must be deterministic
 
 
+def test_tu_path(load_tree):
+    ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
+    assert ter.tu_path == ['CNTRY:F', 'REG:11', 'REG:84', 'DEP:69', 'DEP:75'] # the order must be deterministic
+
+
 def test_tu_names(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_names == ["Rhône", "Paris"] # the order must be deterministic
-
-
-def test_pydantic(load_tree):
-    from pydantic import BaseModel
-
-    class TerritoryModel(BaseModel):
-        terr: Territory
-
-    tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
-
-    TerritoryModel(terr=Territory.from_tu_ids("DEP:75", "COM:69132"))
-    # TerritoryModel(terr='["DEP:69", "COM:69132"]')
-    # TerritoryModel(terr='[]')
-    TerritoryModel(terr={"DEP:69", "COM:69132"})
-    TerritoryModel(terr=["DEP:69", "COM:69132"])
-    TerritoryModel(terr=("DEP:69", "COM:69132"))
-    TerritoryModel(terr=tus)
-    TerritoryModel(terr=[])
 
 
 def test_hash(load_tree):

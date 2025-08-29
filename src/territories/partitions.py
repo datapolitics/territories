@@ -5,8 +5,29 @@ import json_fix
 import rustworkx as rx
 
 from enum import Enum
-from typing import Optional, Protocol, runtime_checkable
 from dataclasses import dataclass, field, asdict
+from typing import Optional, Protocol, runtime_checkable, Any
+
+
+@runtime_checkable
+class Node(Protocol):
+    @property
+    def id(self) -> str: ...
+    
+    @property
+    def label(self) -> str: ...
+    
+    @property
+    def level(self) -> str: ...
+    
+    @property
+    def parent_id(self) -> Optional[str]: ...
+    
+    # @property
+    # def postal_code(self) -> Optional[str]: ...
+    
+    # @property
+    # def inhabitants(self) -> Optional[int]: ...
 
 
 class Partition(Enum):
@@ -49,31 +70,7 @@ class Partition(Enum):
         if isinstance(other, Partition):
             return self.value >= other.value
         return NotImplemented
-
-
-@runtime_checkable
-class Node(Protocol):
-    @property
-    def id(self) -> str: ...
-    
-    @property
-    def label(self) -> str: ...
-    
-    @property
-    def level(self) -> str: ...
-    
-    @property
-    def parent_id(self) -> Optional[str]: ...
-    
-    # @property
-    # def postal_code(self) -> Optional[str]: ...
-    
-    # @property
-    # def inhabitants(self) -> Optional[int]: ...
-
-    
-
-
+  
 
 @dataclass(frozen=True)
 class TerritorialUnit:
@@ -87,28 +84,23 @@ class TerritorialUnit:
     inhabitants: Optional[int] = None
     tree_id: Optional[int] = field(default=None, compare=False)
 
-
     def __repr__(self) -> str:
-        return self.name
-
+        return f"{self.name} ({self.postal_code})" if self.postal_code else self.name
 
     def __lt__(self, other: TerritorialUnit) -> bool:
         if self.level.value == other.level.value:
             return self.name >= other.name
         return self.level.value >= other.level.value
 
-
     def contains(self, other, tree: rx.PyDiGraph) -> bool:
         assert self.tree_id
         assert other.tree_id
         return (self == other) or (self.tree_id in rx.ancestors(tree, other.tree_id))
-    
 
     def to_dict(self):
-        return asdict(self)
-    
-
-    def __json__(self):
         dict_repr = asdict(self)
         dict_repr.pop('tree_id')
-        return dict_repr
+        return dict_repr  
+
+    def __json__(self):
+        return self.to_dict()

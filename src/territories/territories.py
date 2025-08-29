@@ -4,26 +4,25 @@ import os
 import json
 import pickle
 import logging
-from typing_extensions import AsyncIterable
 import json_fix
 import warnings
 
 import rustworkx as rx
 
+from enum import Enum
 from pathlib import Path
 from itertools import chain
 from collections import namedtuple
 from importlib.resources import files
 from functools import lru_cache, reduce
-from typing import Any, Iterable, Optional
 from more_itertools import batched, collapse, flatten
+from typing import Any, Iterable, Optional, AsyncIterable
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
 
 try:
-    from pydantic_core import CoreSchema
-    from pydantic_core import core_schema
+    from pydantic_core import CoreSchema, core_schema
     from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
     HAS_PYDANTIC = True
 except ImportError:
@@ -176,7 +175,10 @@ class Territory:
 
     @classmethod
     async def async_build_tree(cls, async_data_stream: AsyncIterable[Node], save_tree = True, filepath: Optional[str] = None):
-        """Build the territorial tree from a stream of objects.
+        """Build the territorial tree from an async stream of objects.
+        
+        **require the async optional dependency (uv add 'territories[async]')**
+        
         You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
         The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
@@ -706,6 +708,17 @@ class Territory:
 
 
     @property
+    def tu_path(self) -> list[str]:
+        """Return the tu_ids of every territorial units in and above the territory.
+
+        Returns:
+            list[str]: List of tu_ids
+        """
+        # sort the territories to get deterministic behavior
+        return [e.tu_id for e in sorted(self.ancestors(include_itself=True))]
+
+
+    @property
     def tu_names(self) -> list[str]:
         """Return the names of every territorial units in the territory.
 
@@ -818,35 +831,47 @@ class Territory:
         @classmethod
         def __get_pydantic_core_schema__(
             cls,
-            _source_type: Any,
-            _handler: GetCoreSchemaHandler
+            source_type: Any,
+            handler: GetCoreSchemaHandler
         ) -> CoreSchema:
             """This is used by Pydantic to generate the schema for the Territory class.
             It needs to handle all possible ways to create a Territory object.
             """
-            return core_schema.union_schema([
-                # Handle Territory instances directly
-                core_schema.is_instance_schema(Territory),
-                # Handle strings (parse them as territory IDs)
-                # core_schema.chain_schema([
-                #     core_schema.str_schema(),
-                #     core_schema.no_info_plain_validator_function(cls._try_parse)
-                # ]),
-                # Handle lists/iterables of strings (parse as multiple territory IDs)
-                core_schema.chain_schema([
-                    core_schema.list_schema(core_schema.str_schema()),
-                    core_schema.no_info_plain_validator_function(
-                        lambda v: cls.from_tu_ids(v)
-                    )
-                ]),
-                # Handle lists/iterables of TerritorialUnit instances
-                core_schema.chain_schema([
-                    core_schema.list_schema(core_schema.is_instance_schema(TerritorialUnit)),
-                    core_schema.no_info_plain_validator_function(
-                        lambda v: cls(*v)
-                    )
-                ])
+            # parse incoming values into Territory
+            def validate(value: Any):
+                if isinstance(value, cls):
+                    return value
+                # accept list of string ids
+                if isinstance(value, list):
+                    return cls.from_tu_ids(value)
+                # accept a single string id
+                if isinstance(value, str):
+                    return cls.from_tu_ids(value)
+                raise TypeError(f"Cannot build {cls.__name__} from {type(value)!r}")
+    
+            def serialize(value: Territory):
+                out = []
+                for tu in value:
+                    # ensure we turn each TerritorialUnit into primitives:
+                    d = tu.to_dict()
+                    d["level"] = d["level"].name
+                    out.append(d)
+                return out
+    
+            allowed_schema = core_schema.union_schema([
+                core_schema.list_schema(core_schema.str_schema()),   # accept ["DEP:69", ...]
+                core_schema.is_instance_schema(cls),
             ])
+    
+            # use an *after* validator so we can attach the serializer to the schema
+            return core_schema.no_info_after_validator_function(
+                validate,
+                allowed_schema,
+                serialization=core_schema.plain_serializer_function_ser_schema(
+                    serialize,
+                    when_used="json"
+                ),
+            )
 
         # this crash with some validators. Needs to be tested
         @classmethod
