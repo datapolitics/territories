@@ -700,6 +700,8 @@ class Territory:
     def tu_ids(self) -> list[str]:
         """Return the tu_ids of every territorial units in the territory.
 
+        An empty territory returns an empty list
+
         Returns:
             list[str]: List of tu_ids
         """
@@ -710,11 +712,15 @@ class Territory:
     @property
     def tu_path(self) -> list[str]:
         """Return the tu_ids of every territorial units in and above the territory.
+        
+        An empty territory returns an empty list
 
         Returns:
             list[str]: List of tu_ids
         """
         # sort the territories to get deterministic behavior
+        if not self:
+            return []
         return [e.tu_id for e in sorted(self.ancestors(include_itself=True))]
 
 

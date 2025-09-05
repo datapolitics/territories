@@ -250,12 +250,14 @@ def test_creation_already_minimized(load_tree, benchmark):
 def test_tu_ids(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_ids == ["DEP:69", "DEP:75"] # the order must be deterministic
+    assert Territory().tu_ids == []
 
 
 def test_tu_path(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_path == ['CNTRY:F', 'REG:11', 'REG:84', 'DEP:69', 'DEP:75'] # the order must be deterministic
 
+    assert Territory().tu_path == []
 
 def test_tu_names(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
