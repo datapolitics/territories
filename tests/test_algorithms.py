@@ -82,13 +82,13 @@ def test_lca():
 def test_ancestors():
     Territory.assign_tree(tree)
 
-    assert a.ancestors() == {rhone, sud, france}
-    assert b.ancestors() == set()
-    assert c.ancestors() == {rhone, sud, france}
-    assert d.ancestors() == {rhone, sud, france}
+    assert a.ancestors() == [france,sud, rhone]
+    assert b.ancestors() == []
+    assert c.ancestors() == [france,sud, rhone]
+    assert d.ancestors() == [france,sud, rhone]
 
-    assert c.ancestors(include_itself=True) == {rhone, sud, france, idf, metropole}
-    assert d.ancestors(include_itself=True) == {rhone, sud, france, metropole, marseille}
+    assert c.ancestors(include_itself=True) == [france, idf, sud, rhone, metropole]
+    assert d.ancestors(include_itself=True) == [france, sud, rhone, metropole, marseille]
 
-    assert Territory.all_ancestors(paris, marseille) == {sud, idf, france}
-    assert Territory.all_ancestors(paris, Territory(villeurbane, sté)) == {metropole, rhone, sud, idf, france}
+    assert Territory.all_ancestors(paris, marseille) == [france, idf, sud]
+    assert Territory.all_ancestors(paris, Territory(villeurbane, sté)) == [france, idf, sud, rhone, metropole]

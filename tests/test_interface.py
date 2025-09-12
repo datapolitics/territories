@@ -85,7 +85,9 @@ def test_creation():
     with pytest.raises(MissingTreeException):
         Territory.from_tu_ids("DEP:69")
     Territory.assign_tree(tree)
-    Territory()
+    t = Territory()
+    assert t.is_empty()
+
 
 
 @pytest.mark.filterwarnings("ignore:This method is deprecated")
@@ -144,6 +146,20 @@ def test_from_name():
     with pytest.raises(NotOnTreeError, match='not exist'):
         new = Territory.from_name("not exist")
 
+
+def test_base_init():
+    Territory.assign_tree(tree)
+    pantin = Territory.from_name("Pantin")
+    t = Territory(pantin)
+    tt = Territory(t)
+    assert t == tt
+    assert t == Territory(t, tt)
+    
+    rhone = Territory.from_name("Rhône")
+    t = Territory(pantin, rhone)
+    assert t == Territory(pantin, t)
+    assert t == Territory(rhone, t, tt)
+    
 
 def test_union():
     Territory.assign_tree(tree)

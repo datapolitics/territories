@@ -494,7 +494,7 @@ class Territory:
 
 
     @classmethod
-    def all_ancestors(cls, *others: Territory | TerritorialUnit) -> set[TerritorialUnit]:
+    def all_ancestors(cls, *others: Territory | TerritorialUnit) -> list[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit or territory.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -505,7 +505,7 @@ class Territory:
             raise EmptyTerritoryError("An empty territory has no ancestors")
         tus = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
         ancestors  = set.union(set(), *(rx.ancestors(cls.tree, e.tree_id) for e in tus))
-        return {cls.tree.get_node_data(i) for i in ancestors}
+        return sorted(cls.tree.get_node_data(i) for i in ancestors)
 
 
     @classmethod
@@ -614,7 +614,7 @@ class Territory:
         if not cls.tree: # should I raise this even in empty Territory creation ?
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         if not args:
-            raise TypeError("`from_tu_ids()` needs at least one arguments")
+            return cls()
             # return cls()
         all_codes: tuple[str, ...] = tuple(cls.assert_string(s) for s in collapse(args))
         tu_ids = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
@@ -669,7 +669,7 @@ class Territory:
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
 
 
-    def __init__(self, *args: TerritorialUnit) -> None:
+    def __init__(self, *args: TerritorialUnit | Territory) -> None:
         """Create a Territory instance.
 
         A Territory is composed of one or several TerritorialUnit, that represents elements on the territorial tree.
@@ -682,7 +682,8 @@ class Territory:
             raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
         tus = set(args)
         if tus:
-            entities_idxs = {e.tree_id for e in tus}
+            
+            entities_idxs = {e.tree_id for t in tus for e in ((t, ) if isinstance(t, TerritorialUnit) else t)}
             # guarantee the Territory is always represented in minimal form
             self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
         else:
@@ -928,7 +929,7 @@ class Territory:
         return self.LCA(*self.territorial_units)
 
 
-    def ancestors(self, include_itself: bool = False) -> set[TerritorialUnit]:
+    def ancestors(self, include_itself: bool = False) -> list[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit of this territory.
 
         Args:
@@ -943,10 +944,10 @@ class Territory:
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
             res = res | self.territorial_units
-        return res
+        return sorted(res)
 
 
-    def descendants(self, include_itself: bool = False) -> set[TerritorialUnit]:
+    def descendants(self, include_itself: bool = False) -> list[TerritorialUnit]:
         """Return a set of all descendants of every territorial unit of this territory.
 
         Args:
@@ -961,7 +962,7 @@ class Territory:
         res = {self.tree.get_node_data(i) for i in descendants}
         if include_itself:
             res = res | self.territorial_units
-        return res
+        return sorted(res)
 
 
     def parents(self) -> Territory:
