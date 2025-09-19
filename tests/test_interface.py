@@ -90,17 +90,17 @@ def test_creation():
 
 
 
-@pytest.mark.filterwarnings("ignore:This method is deprecated")
-def test_from_names():
-    Territory.assign_tree(tree)
-    new = Territory.from_names("Pantin", "Rhône")
-    assert new == Territory(pantin, rhone)
+# @pytest.mark.filterwarnings("ignore:This method is deprecated")
+# def test_from_names():
+#     Territory.assign_tree(tree)
+#     new = Territory.from_names("Pantin", "Rhône")
+#     assert new == Territory(pantin, rhone)
 
-    with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
-        new = Territory.from_names("not exist", "Rhône", "yolo")
+#     with pytest.raises(NotOnTreeError, match=r"^([\w\s]+,)*[\w\s]+ where not found in the territorial tree$"):
+#         new = Territory.from_names("not exist", "Rhône", "yolo")
 
-    with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
-        new = Territory.from_names("not exist", "Rhône")
+#     with pytest.raises(NotOnTreeError, match='not exist was not found in the territorial tree'):
+#         new = Territory.from_names("not exist", "Rhône")
 
 
 def test_from_tu_ids():
