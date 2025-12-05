@@ -4,7 +4,9 @@ import warnings
 try:
     import psycopg
 except ModuleNotFoundError:
-    raise Exception("Install the postgres optional dependency to load the tree from the DB (uv add 'territories[postgres]')") from None
+    raise Exception(
+        "Install the postgres optional dependency to load the tree from the DB (uv add 'territories[postgres]')"
+    ) from None
 
 try:
     import asyncpg
@@ -18,6 +20,7 @@ from dataclasses import dataclass
 
 from territories.partitions import Node
 
+
 @dataclass
 class NodeTuple:
     id: str
@@ -25,6 +28,7 @@ class NodeTuple:
     label: str
     parent_id: str | None = None
     inhabitants: int | None = None
+
 
 load_dotenv()
 
@@ -47,7 +51,7 @@ def create_connection(database: str, connection_url: str | None = None):
         A psycopg connection object
     """
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
-    
+
     connection_url = connection_url or os.environ["CRAWLING_DB_URL"]
 
     if connection_url:
@@ -57,7 +61,9 @@ def create_connection(database: str, connection_url: str | None = None):
         password = os.environ["DB_PSWD"]
         port = os.environ["DB_PORT"]
         hostname = os.environ["DB_HOST"]
-        connection_string = os.environ["DB_URL"] or f"dbname={database} user={username} password={password} host={hostname} port={port}"
+        connection_string = (
+            os.environ["DB_URL"] or f"dbname={database} user={username} password={password} host={hostname} port={port}"
+        )
         connection = psycopg.connect(connection_string)
     try:
         yield connection
@@ -83,7 +89,7 @@ async def async_create_connection(database: str, connection_url: str | None = No
         An asyncpg connection object
     """
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
-    
+
     if asyncpg is None:
         raise Exception("Install the async optional dependency to use async database operations (uv add 'territories[async]')")
 
@@ -97,13 +103,7 @@ async def async_create_connection(database: str, connection_url: str | None = No
         password = os.environ["DB_PSWD"]
         port = os.environ["DB_PORT"]
         hostname = os.environ["DB_HOST"]
-        connection = await asyncpg.connect(
-            database=database,
-            user=username,
-            password=password,
-            host=hostname,
-            port=port
-        )
+        connection = await asyncpg.connect(database=database, user=username, password=password, host=hostname, port=port)
     try:
         yield connection
     finally:
@@ -121,28 +121,28 @@ def borrow_connection(connection):
 
 
 def read_stream(
-        connection,
-        table: str,
-        elements: Optional[Iterable] = None,
-        conditions: Optional[dict]=None,
-        operator: Optional[str]=None,
-        batch_size: int = 1024
-        ):
+    connection,
+    table: str,
+    elements: Optional[Iterable] = None,
+    conditions: Optional[dict] = None,
+    operator: Optional[str] = None,
+    batch_size: int = 1024,
+):
     cursor = connection.cursor()
     values = []
     if elements:
         if isinstance(elements, str):
             elements = [elements]
-        elements = ', '.join(elements)
+        elements = ", ".join(elements)
     else:
-        elements = '*'
+        elements = "*"
     if conditions:
         is_enumeration = lambda x: isinstance(x, Iterable) and not isinstance(x, str)
-        equality = lambda value: "in" if is_enumeration(value) else '='
+        equality = lambda value: "in" if is_enumeration(value) else "="
         where = " WHERE " + f" {operator} ".join(f"{k} {equality(v)} %s" for k, v in conditions.items() if v)
         values.extend((tuple(x) if is_enumeration(x) else x for x in conditions.values()))
     else:
-        where = ''
+        where = ""
     req = f"SELECT {elements} FROM {table} {where};"
     # cursor.itersize = batch_size
     cursor.execute(req, values)
@@ -159,14 +159,11 @@ def stream_tu_table(cnx) -> Iterable[Node]:
         Iterable[Node]: Objects with id, parent_id, level and label.
     """
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
-    
-    data_stream = (NodeTuple(
-        id=e[0],
-        level=e[1],
-        label=e[2],
-        parent_id=e[3],
-        inhabitants=e[4]
-        ) for e in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id', 'inhabitants']))
+
+    data_stream = (
+        NodeTuple(id=e[0], level=e[1], label=e[2], parent_id=e[3], inhabitants=e[4])
+        for e in read_stream(cnx, "tu", ["id", "level", "label", "parent_id", "inhabitants"])
+    )
     return iter(data_stream)
 
 
@@ -180,19 +177,13 @@ async def async_stream_tu_table(cnx) -> AsyncIterable[Node]:
         AsyncIterable[Node]: Objects with id, parent_id, level and label.
     """
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
-    
+
     if asyncpg is None:
         raise Exception("Install the async optional dependency to use async database operations (uv add 'territories[async]')")
 
     query = "SELECT id, level, label, parent_id, inhabitants FROM tu;"
     async for record in cnx.cursor(query):
-        yield NodeTuple(
-            id=record[0],
-            level=record[1],
-            label=record[2],
-            parent_id=record[3],
-            inhabitants=record[4]
-        )
+        yield NodeTuple(id=record[0], level=record[1], label=record[2], parent_id=record[3], inhabitants=record[4])
 
 
 # Usage example for async functions:
@@ -203,5 +194,5 @@ async def async_stream_tu_table(cnx) -> AsyncIterable[Node]:
 
 if __name__ == "__main__":
     with create_connection("crawling") as cnx:
-        for element in read_stream(cnx, "tu", ['id', 'level', 'label', 'parent_id', 'postal_code']):
+        for element in read_stream(cnx, "tu", ["id", "level", "label", "parent_id", "postal_code"]):
             print(element)

@@ -1,31 +1,31 @@
 from __future__ import annotations
 
-import json_fix
+import json_fix  # noqa: F401
 
 import rustworkx as rx
 
 from enum import Enum
+from typing import Protocol, runtime_checkable
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Protocol, runtime_checkable, Any
 
 
 @runtime_checkable
 class Node(Protocol):
     @property
     def id(self) -> str: ...
-    
+
     @property
     def label(self) -> str: ...
-    
+
     @property
     def level(self) -> str: ...
-    
+
     @property
-    def parent_id(self) -> Optional[str]: ...
-    
+    def parent_id(self) -> str | None: ...
+
     # @property
     # def postal_code(self) -> Optional[str]: ...
-    
+
     # @property
     # def inhabitants(self) -> Optional[int]: ...
 
@@ -37,7 +37,8 @@ class Partition(Enum):
     I am not conviced this is a good idea to have an empty partition.
     Maybe we should force the user to check if the territory is empty before extracting it's level.
     """
-    EMPTY = 0 # maybe this is not a good idea
+
+    EMPTY = 0  # maybe this is not a good idea
     ARR = 1
     COM = 2
     DEP = 3
@@ -47,7 +48,7 @@ class Partition(Enum):
 
     def __str__(self) -> str:
         return self.name
-    
+
     def __json__(self):
         return self.name
 
@@ -70,22 +71,22 @@ class Partition(Enum):
         if isinstance(other, Partition):
             return self.value >= other.value
         return NotImplemented
-  
+
 
 @dataclass(frozen=True)
 class TerritorialUnit:
-    """A known territory, such as a city, a departement or a region.
-    """
+    """A known territory, such as a city, a departement or a region."""
+
     name: str
     tu_id: str
     atomic: bool = True
     level: Partition = Partition.COM
-    postal_code: Optional[str] = None
-    inhabitants: Optional[int] = None
-    tree_id: Optional[int] = field(default=None, compare=False)
+    postal_code: str | None = None
+    inhabitants: int | None = None
+    tree_id: int | None = field(default=None, compare=False)
 
     def __repr__(self) -> str:
-        return f"{self.name} ({self.postal_code})" if self.postal_code else self.name
+        return f"{self.name} ({self.postal_code})" if (self.postal_code and self.level == Partition.COM) else self.name
 
     def __lt__(self, other: TerritorialUnit) -> bool:
         if self.level.value == other.level.value:
@@ -99,8 +100,8 @@ class TerritorialUnit:
 
     def to_dict(self):
         dict_repr = asdict(self)
-        dict_repr.pop('tree_id')
-        return dict_repr  
+        dict_repr.pop("tree_id")
+        return dict_repr
 
     def __json__(self):
         return self.to_dict()

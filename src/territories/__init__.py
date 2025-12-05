@@ -1,13 +1,5 @@
 # this tells both users and type checkers exactly which names are part of the public API
-__all__ = [
-    "Territory",
-    "TerritorialUnit",
-    "Partition",
-    "MissingTreeException",
-    "MissingTreeCache",
-    "NotOnTreeError",
-    "Node"
-]
+__all__ = ["Territory", "TerritorialUnit", "Partition", "MissingTreeException", "MissingTreeCache", "NotOnTreeError", "Node"]
 
 
 from .territories import Territory
