@@ -10,6 +10,7 @@ import rustworkx as rx
 
 from pathlib import Path
 from itertools import chain
+from json import JSONDecodeError
 from importlib.resources import files
 from functools import lru_cache, reduce
 from typing import Any, NamedTuple, override
@@ -82,13 +83,34 @@ class Territory:
             case p:
                 raise TypeError(f"Unknow terrotory type {p}")
 
+        inhabitants, postal_code = None, None
+        if hasattr(node, "inhabitants") and isinstance(node.inhabitants, (int, float)):
+            inhabitants = node.inhabitants
+
+        if hasattr(node, "postal_code"):
+            match node.postal_code:
+                case [one]:
+                    postal_code = one
+                case [*many]:
+                    logger.info(f"Node {node.label} has several postal codes : {', '.join(many)}")
+                    postal_code = None
+                case e if isinstance(e, str):
+                    try:
+                        codes = json.loads(e)
+                        if isinstance(codes, list) and len(codes) == 1:
+                            postal_code = codes[0]
+                        else:
+                            postal_code = None
+                    except (JSONDecodeError, TypeError):
+                        postal_code = e
+
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
             tu_id=node.id,
             level=partition,
-            postal_code=getattr(node, "postal_code", None),
-            inhabitants=getattr(node, "inhabitants", None),
+            postal_code=postal_code,
+            inhabitants=inhabitants,
         )
 
     @classmethod

@@ -52,7 +52,7 @@ def create_connection(database: str, connection_url: str | None = None):
     """
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
 
-    connection_url = connection_url or os.environ["CRAWLING_DB_URL"]
+    connection_url = connection_url or os.environ.get("CRAWLING_DB_URL")
 
     if connection_url:
         connection = psycopg.connect(connection_url)
