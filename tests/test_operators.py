@@ -23,35 +23,27 @@ rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 france = TerritorialUnit("France", "France", False, Partition.CNTRY)
 
 
-
-
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
 tree = rx.PyDiGraph()
 entities_indices = tree.add_nodes_from(entities)
 
-mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+mapper = {o: idx for o, idx in zip(entities, entities_indices)}
 edges = [
     (france, idf),
     (france, sud),
-    
     (idf, nogent),
     (idf, pantin),
     (idf, paris),
-
     (sud, marseille),
     (sud, rhone),
-
     (rhone, metropole),
     (rhone, sté),
-
     (metropole, villeurbane),
     (metropole, lyon),
-    ]
+]
 
-tree.add_edges_from([
-    (mapper[parent], mapper[child], None) for parent, child in edges
-])
+tree.add_edges_from([(mapper[parent], mapper[child], None) for parent, child in edges])
 
 Territory.assign_tree(tree)
 
@@ -72,6 +64,7 @@ def test_equality():
 
     for i, j in product(exemples, exemples):
         assert (j == i) == (i == j)
+
 
 def test_addition():
     Territory.assign_tree(tree)
@@ -121,7 +114,7 @@ def test_intersection():
     assert a & b == a
     assert a & d == Territory(marseille)
     assert e & f == Territory(idf, metropole)
-    
+
     for i, j in product(exemples, exemples):
         assert i & j == j & i
 

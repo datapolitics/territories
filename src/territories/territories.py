@@ -4,19 +4,18 @@ import os
 import json
 import pickle
 import logging
-import json_fix
-import warnings
+import json_fix  # noqa: F401
 
 import rustworkx as rx
 
-from enum import Enum
 from pathlib import Path
 from itertools import chain
-from collections import namedtuple
+from json import JSONDecodeError
 from importlib.resources import files
 from functools import lru_cache, reduce
+from typing import Any, NamedTuple, override
+from collections.abc import Iterable, AsyncIterable
 from more_itertools import batched, collapse, flatten
-from typing import Any, Iterable, Optional, AsyncIterable
 
 from territories.partitions import TerritorialUnit, Partition, Node
 from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
@@ -24,12 +23,13 @@ from territories.exceptions import MissingTreeException, MissingTreeCache, NotOn
 try:
     from pydantic_core import CoreSchema, core_schema
     from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
+
     HAS_PYDANTIC = True
 except ImportError:
     HAS_PYDANTIC = False
 
 
-data_file = files('territories').joinpath('data/epci_to_comm.json')
+data_file = files("territories").joinpath("data/epci_to_comm.json")
 with open(str(data_file), "r") as f:
     LEGACY_CODES: dict[str, list[str]] = json.load(f)
 
@@ -38,6 +38,15 @@ logger = logging.getLogger(__name__)
 
 CHECKSUM = "current version is A2FH9"
 
+
+class OrphanNode(NamedTuple):
+    id: str
+    parent_id: str
+    label: str
+    level: str
+    tree_id: int
+
+
 class Territory:
     """Class to represent territories.
 
@@ -45,7 +54,10 @@ class Territory:
     The package guarantee that the representation of a territory will always be efficient.
     For instance, if I create a `Territory` object with all regions from a country, it will simplify it to only the country object.
     """
-    tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph() # this graph has TerritorialUnit on nodes and nothing on the edges
+
+    tree: rx.PyDiGraph[TerritorialUnit, None] = (
+        rx.PyDiGraph()
+    )  # this graph has TerritorialUnit on nodes and nothing on the edges
     root_index: int = 0
     name_to_id: dict[str, int] = {}
 
@@ -59,7 +71,7 @@ class Territory:
             case "COM", comm_id:
                 partition = Partition.COM
                 try:
-                    atomic = comm_id.split(':')[1][:2] not in ('69', '75', '13')
+                    atomic = comm_id.split(":")[1][:2] not in ("69", "75", "13")
                 except Exception:
                     pass
             case "DEP", _:
@@ -71,15 +83,35 @@ class Territory:
             case p:
                 raise TypeError(f"Unknow terrotory type {p}")
 
+        inhabitants, postal_code = None, None
+        if hasattr(node, "inhabitants") and isinstance(node.inhabitants, (int, float)):
+            inhabitants = node.inhabitants
+
+        if hasattr(node, "postal_code"):
+            match node.postal_code:
+                case [one]:
+                    postal_code = one
+                case [*many]:
+                    logger.info(f"Node {node.label} has several postal codes : {', '.join(many)}")
+                    postal_code = None
+                case e if isinstance(e, str):
+                    try:
+                        codes = json.loads(e)
+                        if isinstance(codes, list) and len(codes) == 1:
+                            postal_code = codes[0]
+                        else:
+                            postal_code = None
+                    except (JSONDecodeError, TypeError):
+                        postal_code = e
+
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
             tu_id=node.id,
             level=partition,
-            postal_code=getattr(node, "postal_code", None),
-            inhabitants=getattr(node, "inhabitants", None)
+            postal_code=postal_code,
+            inhabitants=inhabitants,
         )
-
 
     @classmethod
     def reset(cls):
@@ -91,21 +123,20 @@ class Territory:
         cls.root_index = 0
         cls.name_to_id = {}
 
-
     @classmethod
     def load_tree_from_bytes(cls, data: bytes):
         cls.reset()
         try:
-            checksum, cls.name_to_id, cls.tree = pickle.loads(data)
+            raw_data: tuple[str, dict[str, int], rx.PyDiGraph[TerritorialUnit, None]] = pickle.loads(data)
+            checksum, cls.name_to_id, cls.tree = raw_data
         except ValueError:
             raise Exception("The data is not a valid territorial tree.")
         if checksum != CHECKSUM:
             raise Exception("The data is not a valid territorial tree.")
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
 
-
     @classmethod
-    def load_tree(cls, filepath: Optional[str] = None):
+    def load_tree(cls, filepath: str | None = None):
         """Attempt to load the territorial tree from a file.
         If no file is provided, it will look on the API_CACHE_DIR env. variable.
 
@@ -126,7 +157,7 @@ class Territory:
             path = Path(cache_dir, "territorial_tree_state.pickle")
         if isinstance(filepath, (str, Path, os.PathLike)):
             path = filepath
-        if not path: # wrong behavior, filepath should be any representation of a filepath
+        if not path:  # wrong behavior, filepath should be any representation of a filepath
             raise TypeError("filepath has to ba a string")
         try:
             with open(path, "rb") as file:
@@ -144,9 +175,8 @@ class Territory:
         for name in names:
             assert name == cls.hash(name).tu_id
 
-
     @classmethod
-    def save_tree(cls, filepath: Optional[str] = None, return_bytes: bool = False) -> Optional[bytes]:
+    def save_tree(cls, filepath: str | None = None, return_bytes: bool = False) -> bytes | None:
         """Save the territorial tree and the hashmap to a file.
 
         If no file is provided, it will look for the API_CACHE_DIR env. variable to create a new one.
@@ -172,13 +202,14 @@ class Territory:
         if path is None and not return_bytes:
             raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
 
-
     @classmethod
-    async def async_build_tree(cls, async_data_stream: AsyncIterable[Node], save_tree = True, filepath: Optional[str] = None):
+    async def async_build_tree(
+        cls, async_data_stream: AsyncIterable[Node], save_tree: bool = True, filepath: str | None = None
+    ):
         """Build the territorial tree from an async stream of objects.
-        
+
         **require the async optional dependency (uv add 'territories[async]')**
-        
+
         You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
         The id attribute will be assigned as **es_code** attribute in TerritorialUnit nodes.
@@ -191,61 +222,60 @@ class Territory:
         try:
             from aioitertools.more_itertools import chunked
         except (ModuleNotFoundError, ImportError):
-            raise Exception("Install the async optional dependency to load the tree from an async iterator (uv add 'territories[async]')") from None
+            raise Exception(
+                "Install the async optional dependency to load the tree from an async iterator (uv add 'territories[async]')"
+            ) from None
 
         cls.reset()
 
-        tree = rx.PyDiGraph()
-        mapper = {}
+        tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
+        mapper: dict[str, int] = {}
         orphans: list[OrphanNode] = []
         batch_size = 1024
-        OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
+
         async for batch in chunked(async_data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
             for node, tree_idx in zip(batch, entities_indices):
                 if not tree.get_node_data(tree_idx).atomic:
                     mapper[node.id] = tree_idx
-                object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
+                object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
 
-            edges = []
+            edges: list[tuple[int, int, None]] = []
             for node, tree_idx in zip(batch, entities_indices):
                 if node.parent_id in mapper:
                     edges.append((mapper[node.parent_id], tree_idx, None))
                 else:
-                    if node.parent_id: # do not append root node to orphans
+                    if node.parent_id:  # do not append root node to orphans
                         # object.__setattr__(node, 'tree_id', tree_idx)
                         # orphans.append(node)
 
                         # this is a lot more expensive than updating the node object
                         # but we have no guarantee that it is mutable (can be a tuple)
                         orphan = OrphanNode(
-                            id=node.id,
-                            parent_id=node.parent_id,
-                            label=node.label,
-                            level=node.level,
-                            tree_id=tree_idx
-                            )
+                            id=node.id, parent_id=node.parent_id, label=node.label, level=node.level, tree_id=tree_idx
+                        )
                         orphans.append(orphan)
-                    tree.add_edges_from(edges)
-        
-        edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
-        tree.add_edges_from(edges)
+                    _ = tree.add_edges_from(edges)
+
+        new_edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        _ = tree.add_edges_from(new_edges)
 
         last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
         if last_orphans:
-            logger.warning(f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}")
+            logger.warning(
+                f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
+            )
 
-        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
+        cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
         cls.tree = tree
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
         if save_tree:
-            cls.save_tree(filepath=filepath)
-                    
-                    
+            _ = cls.save_tree(filepath=filepath)
+
     @classmethod
-    def build_tree(cls, data_stream: Iterable[Node], save_tree = True, filepath: Optional[str] = None):
+    def build_tree(cls, data_stream: Iterable[Node], save_tree: bool = True, filepath: str | None = None):
         """Build the territorial tree from a stream of objects.
         You can use the built-in territories.partitions.Node object, but any object with attributes **id**, **parent_id**, **level** and **label** will work.
 
@@ -258,57 +288,53 @@ class Territory:
         """
         cls.reset()
 
-        tree = rx.PyDiGraph()
-        mapper = {}
+        tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
+        mapper: dict[str, int] = {}
         orphans: list[OrphanNode] = []
         batch_size = 1024
-        OrphanNode = namedtuple('OrphanNode', ('id', 'parent_id', 'label', 'level', 'tree_id'))
         for batch in batched(data_stream, batch_size):
             entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
             for node, tree_idx in zip(batch, entities_indices):
                 if not tree.get_node_data(tree_idx).atomic:
                     mapper[node.id] = tree_idx
-                object.__setattr__(tree.get_node_data(tree_idx), 'tree_id', tree_idx)
+                object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
 
-            edges = []
+            edges: list[tuple[int, int, None]] = []
             for node, tree_idx in zip(batch, entities_indices):
                 if node.parent_id in mapper:
                     edges.append((mapper[node.parent_id], tree_idx, None))
                 else:
-                    if node.parent_id: # do not append root node to orphans
+                    if node.parent_id:  # do not append root node to orphans
                         # object.__setattr__(node, 'tree_id', tree_idx)
                         # orphans.append(node)
 
                         # this is a lot more expensive than updating the node object
                         # but we have no guarantee that it is mutable (can be a tuple)
                         orphan = OrphanNode(
-                            id=node.id,
-                            parent_id=node.parent_id,
-                            label=node.label,
-                            level=node.level,
-                            tree_id=tree_idx
-                            )
+                            id=node.id, parent_id=node.parent_id, label=node.label, level=node.level, tree_id=tree_idx
+                        )
                         orphans.append(orphan)
-            tree.add_edges_from(edges)
+            _ = tree.add_edges_from(edges)
 
-        edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
-        tree.add_edges_from(edges)
+        new_edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
+        _ = tree.add_edges_from(new_edges)
 
         last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
         if last_orphans:
-            logger.warning(f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}")
+            logger.warning(
+                f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
+            )
 
-        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
+        cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
         cls.tree = tree
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
         if save_tree:
-            cls.save_tree(filepath=filepath)
-
+            _ = cls.save_tree(filepath=filepath)
 
     @classmethod
-    def assign_tree(cls, tree: rx.PyDiGraph):
+    def assign_tree(cls, tree: rx.PyDiGraph[TerritorialUnit, None]):
         """DEPRECATED. Do not use this method. Its only purpose is for quick and easy tests.
 
         Directly assign a tree to the class.
@@ -320,13 +346,12 @@ class Territory:
 
         elements: list[TerritorialUnit] = [tree.get_node_data(i) for i in tree.node_indices()]
         for i, e in enumerate(elements):
-            object.__setattr__(e, 'tree_id', i)
-            object.__setattr__(e, 'tu_id', e.name)
+            object.__setattr__(e, "tree_id", i)
+            object.__setattr__(e, "tu_id", e.name)
 
-        cls.name_to_id = {tree.get_node_data(i).tu_id : i for i in tree.node_indices()}
+        cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
         cls.tree = tree
         cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
-
 
     @classmethod
     def successors(cls, tu: TerritorialUnit) -> list[TerritorialUnit]:
@@ -344,28 +369,24 @@ class Territory:
         assert tu.tree_id is not None
         return cls.tree.successors(tu.tree_id)
 
-
     @staticmethod
     @lru_cache(maxsize=256)
     def _ancestors(tree: rx.PyDiGraph, node: int) -> set[int]:
         return rx.ancestors(tree, node)
 
-
     @staticmethod
-    def contains(a, b, tree):
+    def contains(a: int, b: int, tree: rx.PyDiGraph[TerritorialUnit, None]):
         return (a == b) or (a in rx.ancestors(tree, b))
-
 
     @classmethod
     def minimize(cls, node: int, items: set[int]) -> set[int]:
-        """Make sure the representation of a Territory is always minimal.
-        """
+        """Make sure the representation of a Territory is always minimal."""
         if not items:
             return set()
         if node in items:
             return {node}
         children = set(cls.tree.successor_indices(node))
-        valids = children & items # O(min(children, items))
+        valids = children & items  # O(min(children, items))
         if len(valids) == len(children):
             return {node}
         for valid in valids:
@@ -378,11 +399,10 @@ class Territory:
             return {node}
         return valids
 
-
     @classmethod
     def union(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the union of given elements as a new Territory object
-        
+
         Args:
             Any number of `territories.Territory` or `territories.TerritorialUnit` objects
         Returns:
@@ -391,19 +411,18 @@ class Territory:
         args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
         match args:
             case ():
-                return Territory() # PyRight is wrong, this is run when args is an empty tuple
-            case (x, ) if isinstance(x, Territory):
+                return Territory()  # PyRight is wrong, this is run when args is an empty tuple
+            case (x,) if isinstance(x, Territory):
                 return x
-            case (x, ) if isinstance(x, TerritorialUnit):
+            case (x,) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
                 return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in args))
 
-
     @classmethod
     def intersection(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
         """Returns the intersection of given elements as a new Territory object
-        
+
         Args:
             Any number of `territories.Territory` or `territories.TerritorialUnit` objects
         Returns:
@@ -411,18 +430,17 @@ class Territory:
         """
         args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
         match args:
-            case (): # PyRight is wrong, this is run when args is an empty tuple
+            case ():  # PyRight is wrong, this is run when args is an empty tuple
                 return Territory(cls.tree.get_node_data(cls.root_index))
-            case (x, ) if isinstance(x, Territory):
+            case (x,) if isinstance(x, Territory):
                 return x
-            case (x, ) if isinstance(x, TerritorialUnit):
+            case (x,) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
                 return reduce(lambda x, y: x & y, (x if isinstance(x, Territory) else Territory(x) for x in args))
-                
 
     @classmethod
-    def LCA(cls, *others: Territory | TerritorialUnit) -> Optional[TerritorialUnit]:
+    def LCA(cls, *others: Territory | TerritorialUnit) -> TerritorialUnit | None:
         """Return the lowest common ancestor of the given territorial units.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -441,8 +459,10 @@ class Territory:
         #     if isinstance(node, Territory) and len(node.territorial_units) == 1:
         #         tree_id = next(n.tree_id for n in node.territorial_units)
         #         return cls.tree.predecessors(tree_id).pop()
-        tus: set[TerritorialUnit] = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        common_ancestors = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in tus))
+        tus: set[TerritorialUnit] = set().union(
+            *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others)
+        )
+        common_ancestors: set[int] = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         match len(common_ancestors):
             case 0:
                 return None
@@ -462,9 +482,8 @@ class Territory:
                 return cls.tree.get_node_data(ancestor)
             ancestor = successor
 
-
     @classmethod
-    def get_parent(cls, other: TerritorialUnit) -> Optional[TerritorialUnit]:
+    def get_parent(cls, other: TerritorialUnit) -> TerritorialUnit | None:
         """Return the parent of the given territorial unit.
 
         Args:
@@ -478,7 +497,6 @@ class Territory:
         except IndexError:
             return None
 
-
     @classmethod
     def get_parents(cls, *others: Territory | TerritorialUnit) -> Territory:
         """Return the parent of the given territorial unit.
@@ -489,9 +507,8 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no parent")
-        parent_tus = collapse(cls.tree.predecessors(node.tree_id) for node in collapse(others))
+        parent_tus: Iterable[TerritorialUnit] = collapse(cls.tree.predecessors(node.tree_id) for node in collapse(others))
         return Territory(*parent_tus)
-
 
     @classmethod
     def all_ancestors(cls, *others: Territory | TerritorialUnit) -> list[TerritorialUnit]:
@@ -504,9 +521,8 @@ class Territory:
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
         tus = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        ancestors  = set.union(set(), *(rx.ancestors(cls.tree, e.tree_id) for e in tus))
+        ancestors = set.union(set(), *(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         return sorted(cls.tree.get_node_data(i) for i in ancestors)
-
 
     @classmethod
     def all_descendants(cls, *others: Territory | TerritorialUnit) -> set[TerritorialUnit]:
@@ -518,10 +534,11 @@ class Territory:
         """
         if not others:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        tus: set[TerritorialUnit] = set.union(set(), *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others))
-        ancestors  = set.union(set(), *(rx.descendants(cls.tree, e.tree_id) for e in tus))
+        tus: set[TerritorialUnit] = set().union(
+            *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others)
+        )
+        ancestors = set().union(*(rx.descendants(cls.tree, e.tree_id) for e in tus))
         return {cls.tree.get_node_data(i) for i in ancestors}
-
 
     @classmethod
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
@@ -529,20 +546,18 @@ class Territory:
             return set()
         if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
             children = cls.tree.successors(a.tree_id)
-            return set.union(set(), *(cls._sub(child, b) for child in children))
+            return set().union(*(cls._sub(child, b) for child in children))
         return {a}
-
 
     @classmethod
     def _and(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return {a}
-        if a.tree_id in rx.ancestors(cls.tree, b.tree_id): # if a in b
+        if a.tree_id in rx.ancestors(cls.tree, b.tree_id):  # if a in b
             return {b}
-        if b.tree_id in rx.ancestors(cls.tree, a.tree_id): # if b in a
+        if b.tree_id in rx.ancestors(cls.tree, a.tree_id):  # if b in a
             return {a}
         return set()
-
 
     @classmethod
     def hash(cls, name: str) -> TerritorialUnit:
@@ -561,7 +576,6 @@ class Territory:
             return cls.tree.get_node_data(node_id)
         except KeyError as e:
             raise NotOnTreeError(name) from e
-
 
     @classmethod
     def from_name(cls, tu_id: str) -> TerritorialUnit:
@@ -584,13 +598,11 @@ class Territory:
         """
         return cls.hash(tu_id)
 
-
     @staticmethod
     def assert_string(name: Any) -> str:
         if not isinstance(name, str):
             raise TypeError(f"tu_ids are string, you provided a {type(name).__name__} : {name}")
         return name
-
 
     @classmethod
     def from_tu_ids(cls, *args: str | Iterable[str | Iterable[str]]) -> Territory:
@@ -611,13 +623,13 @@ class Territory:
         >>> Rhône
         ```
         """
-        if not cls.tree: # should I raise this even in empty Territory creation ?
-            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
+        if not cls.tree:  # should I raise this even in empty Territory creation ?
+            raise MissingTreeException("Tree is not initialized. Initialize it with Territory.build_tree()")
         if not args:
             return cls()
             # return cls()
         all_codes: tuple[str, ...] = tuple(cls.assert_string(s) for s in collapse(args))
-        tu_ids = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
+        tu_ids: Iterable[str] = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
         try:
             entities_idxs = {cls.hash(tu) for tu in tu_ids}
             return Territory(*entities_idxs)
@@ -629,47 +641,10 @@ class Territory:
                 except NotOnTreeError:
                     wrong_elements.add(name)
             verb = "were" if len(wrong_elements) > 1 else "was"
-            wrong_elements = ', '.join(str(e) for e in wrong_elements)
+            wrong_elements = ", ".join(str(e) for e in wrong_elements)
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
 
-
-    @classmethod
-    def from_names(cls, *args: str) -> Territory:
-        """Create a new Territory object from names
-        Currently names are codes like **COM:2894** or **DEP:69** 😏.
-        Raises:
-            NotOnTreeError: Raise an exception if one  or more names are not a valid code on the territorial tree.
-
-        Returns:
-            Territory: Territory object with territories associated with the given names.
-
-        soon to be deprecated, use `from_tu_ids()` instead
-
-        exemple :
-        ```python
-        Territory.from_names('COM:01044', 'COM:01149')
-        >>> Douvres|Billiat
-        ```
-        """
-        warnings.warn("This method is deprecated, use from_tu_ids() instead", UserWarning)
-        if not cls.tree:
-            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
-        entities_idxs = (cls.hash(name) for name in args)
-        try:
-            return Territory(*entities_idxs)
-        except (NotOnTreeError):
-            wrong_elements = set()
-            for name in args:
-                try:
-                    cls.hash(name)
-                except NotOnTreeError:
-                    wrong_elements.add(name)
-            verb = "where" if len(wrong_elements) > 1 else "was"
-            wrong_elements = ', '.join(str(e) for e in wrong_elements)
-            raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree")
-
-
-    def __init__(self, *args: TerritorialUnit | Territory) -> None:
+    def __init__(self, *args: TerritorialUnit) -> None:
         """Create a Territory instance.
 
         A Territory is composed of one or several TerritorialUnit, that represents elements on the territorial tree.
@@ -679,23 +654,22 @@ class Territory:
             MissingTreeException: You can't build Territory instances if the territorial tree has not been initialized.
         """
         if not self.tree:
-            raise MissingTreeException('Tree is not initialized. Initialize it with Territory.build_tree()')
+            raise MissingTreeException("Tree is not initialized. Initialize it with Territory.build_tree()")
         tus = set(args)
         if tus:
-            
-            entities_idxs = {e.tree_id for t in tus for e in ((t, ) if isinstance(t, TerritorialUnit) else t)}
+            entities_idxs = {e.tree_id for t in tus for e in ((t,) if isinstance(t, TerritorialUnit) else t)}
             # guarantee the Territory is always represented in minimal form
-            self.territorial_units: frozenset[TerritorialUnit] = frozenset(self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs))
+            self.territorial_units: frozenset[TerritorialUnit] = frozenset(
+                self.tree.get_node_data(i) for i in self.minimize(self.root_index, entities_idxs)
+            )
         else:
             self.territorial_units: frozenset[TerritorialUnit] = frozenset()
-
 
     @property
     def type(self) -> Partition:
         if self.is_empty():
             return Partition.EMPTY
         return min(self).level
-
 
     @property
     def tu_ids(self) -> list[str]:
@@ -709,11 +683,10 @@ class Territory:
         # sort the territories to get deterministic behavior
         return [e.tu_id for e in sorted(self.territorial_units)]
 
-
     @property
     def tu_path(self) -> list[str]:
         """Return the tu_ids of every territorial units in and above the territory.
-        
+
         An empty territory returns an empty list
 
         Returns:
@@ -723,7 +696,6 @@ class Territory:
         if not self:
             return []
         return [e.tu_id for e in sorted(self.ancestors(include_itself=True))]
-
 
     @property
     def tu_names(self) -> list[str]:
@@ -735,33 +707,25 @@ class Territory:
         # sort the territories to get deterministic behavior
         return [e.name for e in sorted(self.territorial_units)]
 
-
     def __iter__(self):
         return iter(self.territorial_units)
 
-
     def __len__(self) -> int:
         return len(self.territorial_units)
-
 
     def __eq__(self, other: Territory | TerritorialUnit) -> bool:
         # should also check for equality of ids
         # since some entities share the same territory but are not equal
         # ex : Parlement and ADEME both occupy France, yet are not the same entities
         if isinstance(other, TerritorialUnit):
-            return self.territorial_units == {other}
+            return self.territorial_units == frozenset((other,))
         return self.territorial_units == other.territorial_units
-
 
     def __bool__(self):
         return len(self.territorial_units) != 0
 
-
     def __add__(self, other: Territory) -> Territory:
-        return Territory(
-            *(self.territorial_units | other.territorial_units)
-        )
-
+        return Territory(*(self.territorial_units | other.territorial_units))
 
     def is_contained(self, other: Territory) -> bool:
         if self == other:
@@ -772,40 +736,33 @@ class Territory:
                 return False
         return True
 
-
     def __contains__(self, other: Territory | TerritorialUnit) -> bool:
         if isinstance(other, TerritorialUnit):
             ancestors = rx.ancestors(self.tree, other.tree_id) | {other.tree_id}
             return any(child.tree_id in ancestors for child in self.territorial_units)
         return other.is_contained(self)
 
-
     def is_disjoint(self, other: Territory) -> bool:
-        raise NotImplemented
-
+        raise NotImplementedError
 
     def __or__(self, other: Territory | TerritorialUnit) -> Territory:
         if not self.territorial_units:
-            entities = tuple()
+            entities: Iterable[TerritorialUnit] = tuple()
         else:
-            entities = self.territorial_units
+            entities: Iterable[TerritorialUnit] = self.territorial_units
         if isinstance(other, TerritorialUnit):
             return Territory(*chain(entities, [other]))
-        if other.territorial_units is not None:
-            return Territory(*chain(entities, other.territorial_units))
-        return self
-
+        return Territory(*chain(entities, other.territorial_units))
 
     def __and__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
-            return  Territory(*chain(*(self._and(child, other) for child in self.territorial_units)))
+            return Territory(*chain(*(self._and(child, other) for child in self.territorial_units)))
         if (not other.territorial_units) or (not self.territorial_units):
             return Territory()
         if self in other:
             return self
 
         return Territory.union(*(self & child for child in other.territorial_units))
-
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
@@ -817,33 +774,27 @@ class Territory:
 
         return Territory.intersection(*(self - child for child in other.territorial_units))
 
-
+    @override
     def __hash__(self):
         return hash(self.territorial_units)
-
 
     def __json__(self):
         return self.territorial_units
 
-
+    @override
     def __repr__(self) -> str:
         if self.territorial_units:
-            return '|'.join(str(e) for e in sorted(self.territorial_units, reverse=True))
-        return 'ø'
-
+            return "|".join(str(e) for e in sorted(self.territorial_units, reverse=True))
+        return "ø"
 
     if HAS_PYDANTIC:
-
         # this method should raise specific Pydantic Exceptions
         @classmethod
-        def __get_pydantic_core_schema__(
-            cls,
-            source_type: Any,
-            handler: GetCoreSchemaHandler
-        ) -> CoreSchema:
+        def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
             """This is used by Pydantic to generate the schema for the Territory class.
             It needs to handle all possible ways to create a Territory object.
             """
+
             # parse incoming values into Territory
             def validate(value: Any):
                 if isinstance(value, cls):
@@ -855,7 +806,7 @@ class Territory:
                 if isinstance(value, str):
                     return cls.from_tu_ids(value)
                 raise TypeError(f"Cannot build {cls.__name__} from {type(value)!r}")
-    
+
             def serialize(value: Territory):
                 out = []
                 for tu in value:
@@ -864,20 +815,19 @@ class Territory:
                     d["level"] = d["level"].name
                     out.append(d)
                 return out
-    
-            allowed_schema = core_schema.union_schema([
-                core_schema.list_schema(core_schema.str_schema()),   # accept ["DEP:69", ...]
-                core_schema.is_instance_schema(cls),
-            ])
-    
+
+            allowed_schema = core_schema.union_schema(
+                [
+                    core_schema.list_schema(core_schema.str_schema()),  # accept ["DEP:69", ...]
+                    core_schema.is_instance_schema(cls),
+                ]
+            )
+
             # use an *after* validator so we can attach the serializer to the schema
             return core_schema.no_info_after_validator_function(
                 validate,
                 allowed_schema,
-                serialization=core_schema.plain_serializer_function_ser_schema(
-                    serialize,
-                    when_used="json"
-                ),
+                serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
             )
 
         # this crash with some validators. Needs to be tested
@@ -898,7 +848,6 @@ class Territory:
         # def __get_validators__(cls) -> Iterator[Callable[..., Any]]:
         #     yield cls.validate
 
-
         # @classmethod
         # def validate(cls, value: Any) -> Territory:
         #     if isinstance(value, str):
@@ -909,17 +858,15 @@ class Territory:
         #         return cls.from_tu_ids(*value)
         #     return cls.from_tu_ids(value)
 
-
     @classmethod
     def _try_parse(cls, input_string: str) -> Territory:
         try:
             tus = json.loads(input_string)
         except json.JSONDecodeError:
-            tus = input_string.split('|')
+            tus = input_string.split("|")
         return cls.from_tu_ids(tus)
 
-
-    def lowest_common_ancestor(self) -> Optional[TerritorialUnit]:
+    def lowest_common_ancestor(self) -> TerritorialUnit | None:
         """Return the lowest common ancestor of the territorial units of this territory.
 
         Details of this algorithm [here](https://networkx.org/nx-guides/content/algorithms/lca/LCA.html).
@@ -927,7 +874,6 @@ class Territory:
             TerritorialUnit| None: A TerritorialUnit object being the lowest common ancestor of every territorial units of the territory. None if the territory has no parents.
         """
         return self.LCA(*self.territorial_units)
-
 
     def ancestors(self, include_itself: bool = False) -> list[TerritorialUnit]:
         """Return a set of all ancestors of every territorial unit of this territory.
@@ -940,12 +886,11 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no ancestors")
-        ancestors = set.union(set(), *(rx.ancestors(self.tree, e.tree_id) for e in self.territorial_units))
+        ancestors = set().union(*(rx.ancestors(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in ancestors}
         if include_itself:
             res = res | self.territorial_units
         return sorted(res)
-
 
     def descendants(self, include_itself: bool = False) -> list[TerritorialUnit]:
         """Return a set of all descendants of every territorial unit of this territory.
@@ -958,20 +903,17 @@ class Territory:
         """
         if not self.territorial_units:
             raise EmptyTerritoryError("An empty territory has no descendants")
-        descendants = set.union(set(), *(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
+        descendants = set().union(*(rx.descendants(self.tree, e.tree_id) for e in self.territorial_units))
         res = {self.tree.get_node_data(i) for i in descendants}
         if include_itself:
             res = res | self.territorial_units
         return sorted(res)
 
-
     def parents(self) -> Territory:
         return self.get_parents(self)
 
-
     def children(self) -> list[TerritorialUnit]:
         return list(flatten(self.tree.successors(node.tree_id) for node in self))
-
 
     def is_empty(self) -> bool:
         """

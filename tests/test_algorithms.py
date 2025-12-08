@@ -21,34 +21,27 @@ rhone = TerritorialUnit("Rhône", "Rhône", False, Partition.DEP)
 france = TerritorialUnit("France", "France", False, Partition.CNTRY)
 
 
-
 entities = (france, sud, idf, rhone, metropole, nogent, pantin, paris, marseille, sté, villeurbane, lyon)
 
 tree = rx.PyDiGraph()
 entities_indices = tree.add_nodes_from(entities)
 
-mapper = {o : idx for o, idx in zip(entities, entities_indices)}
+mapper = {o: idx for o, idx in zip(entities, entities_indices)}
 edges = [
     (france, idf),
     (france, sud),
-    
     (idf, nogent),
     (idf, pantin),
     (idf, paris),
-
     (sud, marseille),
     (sud, rhone),
-
     (rhone, metropole),
     (rhone, sté),
-
     (metropole, villeurbane),
     (metropole, lyon),
-    ]
+]
 
-tree.add_edges_from([
-    (mapper[parent], mapper[child], None) for parent, child in edges
-])
+tree.add_edges_from([(mapper[parent], mapper[child], None) for parent, child in edges])
 
 Territory.assign_tree(tree)
 
@@ -72,7 +65,6 @@ def test_lca():
     assert france == e.lowest_common_ancestor()
     assert france == f.lowest_common_ancestor()
 
-
     assert sud == Territory.LCA(lyon, marseille)
     assert france == Territory.LCA(lyon, Territory(marseille, paris))
     assert rhone != Territory.LCA(rhone)
@@ -82,10 +74,10 @@ def test_lca():
 def test_ancestors():
     Territory.assign_tree(tree)
 
-    assert a.ancestors() == [france,sud, rhone]
+    assert a.ancestors() == [france, sud, rhone]
     assert b.ancestors() == []
-    assert c.ancestors() == [france,sud, rhone]
-    assert d.ancestors() == [france,sud, rhone]
+    assert c.ancestors() == [france, sud, rhone]
+    assert d.ancestors() == [france, sud, rhone]
 
     assert c.ancestors(include_itself=True) == [france, idf, sud, rhone, metropole]
     assert d.ancestors(include_itself=True) == [france, sud, rhone, metropole, marseille]

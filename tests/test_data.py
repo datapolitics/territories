@@ -9,7 +9,6 @@ def test_legacy_codes():
 
     assert Territory.from_tu_ids("f81d4fae-7dec-11d0-a765-00a0c91e6bf6") == Territory.from_tu_ids("DEP:69", "DEP:75")
 
-
-            # if "EPCI" in name and not name in epci_to_comm:
-            #     name = name.split('-')[0]
-            # return epci_to_comm.get(name, name)
+    # if "EPCI" in name and not name in epci_to_comm:
+    #     name = name.split('-')[0]
+    # return epci_to_comm.get(name, name)
