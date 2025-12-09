@@ -641,7 +641,7 @@ class Territory:
                 except NotOnTreeError:
                     wrong_elements.add(name)
             verb = "were" if len(wrong_elements) > 1 else "was"
-            wrong_elements = ", ".join(str(e) for e in wrong_elements)
+            wrong_elements = ", ".join(sorted(str(e) for e in wrong_elements))
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
 
     def __init__(self, *args: TerritorialUnit) -> None:
