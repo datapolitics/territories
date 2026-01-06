@@ -129,12 +129,36 @@ def test_intersection():
         assert i & j == j & i
 
 
-def test_benchmark_intersection(load_tree, benchmark):
+@pytest.fixture
+def complex_territory(load_tree):
     with open("tests/big_territory.txt", "r") as f:
         file_ids = {s.strip() for s in f.readlines()} - {""}
-        complex_ter = Territory.from_tu_ids(file_ids)
-    simple_ter = Territory.from_tu_ids("REG:76")
-    benchmark.pedantic(lambda: simple_ter & complex_ter, rounds=10, iterations=1)
+    return Territory.from_tu_ids(file_ids)
+
+
+@pytest.fixture
+def simple_territory(load_tree):
+    return Territory.from_tu_ids("REG:76")
+
+
+def test_benchmark_intersection(complex_territory, simple_territory, benchmark):
+    benchmark.pedantic(lambda: simple_territory & complex_territory, rounds=32, iterations=1)
+
+
+def test_benchmark_union(complex_territory, simple_territory, benchmark):
+    benchmark.pedantic(lambda: simple_territory | complex_territory, rounds=32, iterations=1)
+
+
+def test_benchmark_subtraction(complex_territory, simple_territory, benchmark):
+    benchmark.pedantic(lambda: complex_territory - simple_territory, rounds=32, iterations=1)
+
+
+def test_benchmark_addition(complex_territory, simple_territory, benchmark):
+    benchmark.pedantic(lambda: simple_territory + complex_territory, rounds=32, iterations=1)
+
+
+def test_benchmark_contains(complex_territory, simple_territory, benchmark):
+    benchmark.pedantic(lambda: simple_territory in complex_territory, rounds=32, iterations=1)
 
 
 def test_substraction():

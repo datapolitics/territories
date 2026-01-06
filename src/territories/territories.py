@@ -9,8 +9,8 @@ import json_fix  # noqa: F401
 import rustworkx as rx
 
 from pathlib import Path
-from itertools import chain
 from json import JSONDecodeError
+from itertools import chain, product
 from importlib.resources import files
 from functools import lru_cache, reduce
 from typing import Any, NamedTuple, override
@@ -769,7 +769,13 @@ class Territory:
         if self in other:
             return self
 
-        return Territory.union(*(self & child for child in other.territorial_units))
+        # Directly collect _and results to avoid creating intermediate Territory objects
+        return Territory(*chain(*(self._and(a, b) for a, b in product(self.territorial_units, other.territorial_units))))
+        # all_units: list[TerritorialUnit] = []
+        # for other_child in other.territorial_units:
+            # for self_child in self.territorial_units:
+                # all_units.extend(self._and(self_child, other_child))
+        # return Territory(*all_units)
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
