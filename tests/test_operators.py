@@ -134,7 +134,7 @@ def test_benchmark_intersection(load_tree, benchmark):
         file_ids = {s.strip() for s in f.readlines()} - {""}
         complex_ter = Territory.from_tu_ids(file_ids)
     simple_ter = Territory.from_tu_ids("REG:76")
-    benchmark.pedantic(lambda: simple_ter & complex_ter, rounds=1, iterations=1)
+    benchmark.pedantic(lambda: simple_ter & complex_ter, rounds=10, iterations=1)
 
 
 def test_substraction():

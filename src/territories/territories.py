@@ -408,7 +408,7 @@ class Territory:
         Returns:
             Territory: A new Territory object containing all elements
         """
-        args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
+        args: tuple[Territory | TerritorialUnit, ...] = tuple(collapse(others, base_type=Territory))
         match args:
             case ():
                 return Territory()  # PyRight is wrong, this is run when args is an empty tuple
@@ -417,7 +417,14 @@ class Territory:
             case (x,) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
-                return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in args))
+                # Collect all territorial units first to avoid O(N²) from repeated minimize calls
+                all_units: list[TerritorialUnit] = []
+                for x in args:
+                    if isinstance(x, Territory):
+                        all_units.extend(x.territorial_units)
+                    else:
+                        all_units.append(x)
+                return Territory(*all_units)
 
     @classmethod
     def intersection(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
