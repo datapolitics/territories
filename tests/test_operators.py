@@ -1,3 +1,6 @@
+import gzip
+import pytest
+
 import rustworkx as rx
 
 from itertools import product
@@ -55,6 +58,13 @@ e = Territory(rhone, idf)
 f = Territory(idf, marseille, metropole)
 
 exemples = (a, b, c, d, e, f)
+
+
+@pytest.fixture
+def load_tree():
+    Territory.reset()
+    with open("tests/full_territorial_tree.gzip", "rb") as file:
+        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
 
 def test_equality():
@@ -117,6 +127,14 @@ def test_intersection():
 
     for i, j in product(exemples, exemples):
         assert i & j == j & i
+
+
+def test_benchmark_intersection(load_tree, benchmark):
+    with open("tests/big_territory.txt", "r") as f:
+        file_ids = {s.strip() for s in f.readlines()} - {""}
+        complex_ter = Territory.from_tu_ids(file_ids)
+    simple_ter = Territory.from_tu_ids("REG:76")
+    benchmark.pedantic(lambda: simple_ter & complex_ter, rounds=1, iterations=1)
 
 
 def test_substraction():
