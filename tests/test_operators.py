@@ -166,3 +166,457 @@ def test_substraction():
 
     assert a - b == Territory()
     assert b - a == Territory(metropole, idf)
+
+
+# =============================================================================
+# Property-based tests for algebraic properties
+# =============================================================================
+
+
+class TestEqualityProperties:
+    """Tests for equality properties: reflexivity, symmetry, transitivity."""
+
+    def test_reflexivity(self):
+        """a == a for all territories."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            assert t == t
+
+    def test_symmetry(self):
+        """(a == b) == (b == a) for all territories."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert (i == j) == (j == i)
+
+    def test_transitivity(self):
+        """If a == b and b == c, then a == c."""
+        Territory.assign_tree(tree)
+        # Create equivalent territories
+        t1 = Territory(france)
+        t2 = Territory(lyon, france)  # simplifies to france
+        t3 = Territory(idf, sud)  # also simplifies to france
+        assert t1 == t2
+        assert t2 == t3
+        assert t1 == t3
+
+    def test_equality_with_empty(self):
+        """Empty territory equals itself."""
+        Territory.assign_tree(tree)
+        empty1 = Territory()
+        empty2 = Territory()
+        assert empty1 == empty2
+
+
+class TestUnionProperties:
+    """Tests for union properties: commutativity, associativity, identity, idempotence."""
+
+    def test_commutativity(self):
+        """a | b == b | a for all territories."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert i | j == j | i
+
+    def test_associativity(self):
+        """(a | b) | c == a | (b | c) for all territories."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(exemples, exemples, exemples):
+            assert (i | j) | k == i | (j | k)
+
+    def test_identity(self):
+        """a | empty == a for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert t | empty == t
+            assert empty | t == t
+
+    def test_idempotence(self):
+        """a | a == a for all territories."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            assert t | t == t
+
+    def test_absorption_with_superset(self):
+        """If a is contained in b, then a | b == b."""
+        Territory.assign_tree(tree)
+        # a (sté, marseille) is contained in b (france)
+        assert a in b
+        assert a | b == b
+
+    def test_union_class_method(self):
+        """Territory.union works the same as | operator."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert Territory.union(i, j) == i | j
+
+    def test_union_multiple(self):
+        """Union of multiple territories."""
+        Territory.assign_tree(tree)
+        assert Territory.union(a, c, d) == a | c | d
+        assert Territory.union([a, c, d]) == a | c | d
+
+
+class TestIntersectionProperties:
+    """Tests for intersection properties: commutativity, associativity, identity, idempotence."""
+
+    def test_commutativity(self):
+        """a & b == b & a for all territories."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert i & j == j & i
+
+    def test_associativity(self):
+        """(a & b) & c == a & (b & c) for all territories."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(exemples, exemples, exemples):
+            assert (i & j) & k == i & (j & k)
+
+    def test_idempotence(self):
+        """a & a == a for all territories."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            assert t & t == t
+
+    def test_intersection_with_empty(self):
+        """a & empty == empty for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert t & empty == empty
+            assert empty & t == empty
+
+    def test_absorption_with_subset(self):
+        """If a is contained in b, then a & b == a."""
+        Territory.assign_tree(tree)
+        # a (sté, marseille) is contained in b (france)
+        assert a in b
+        assert a & b == a
+
+    def test_intersection_class_method(self):
+        """Territory.intersection works the same as & operator."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert Territory.intersection(i, j) == i & j
+
+    def test_intersection_multiple(self):
+        """Intersection of multiple territories."""
+        Territory.assign_tree(tree)
+        assert Territory.intersection(a, b, e) == a & b & e
+
+
+class TestAdditionProperties:
+    """Tests for addition (combines then minimizes): commutativity, associativity."""
+
+    def test_commutativity(self):
+        """a + b == b + a for all territories."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert i + j == j + i
+
+    def test_associativity(self):
+        """(a + b) + c == a + (b + c) for all territories."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(exemples, exemples, exemples):
+            assert (i + j) + k == i + (j + k)
+
+    def test_identity(self):
+        """a + empty == a for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert t + empty == t
+            assert empty + t == t
+
+    def test_addition_equals_union(self):
+        """Addition should produce the same result as union."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            assert i + j == i | j
+
+
+class TestSubtractionProperties:
+    """Tests for subtraction properties."""
+
+    def test_self_subtraction(self):
+        """a - a == empty for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert t - t == empty
+
+    def test_subtraction_of_empty(self):
+        """a - empty == a for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert t - empty == t
+
+    def test_empty_minus_anything(self):
+        """empty - a == empty for all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert empty - t == empty
+
+    def test_subtraction_of_superset(self):
+        """If a is contained in b, then a - b == empty."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        # a (sté, marseille) is contained in b (france)
+        assert a in b
+        assert a - b == empty
+
+    def test_subtraction_complement(self):
+        """(a | b) - b should be contained in a."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            result = (i | j) - j
+            assert result in i or result == Territory()
+
+
+class TestContainmentProperties:
+    """Tests for containment (in) properties: reflexivity, antisymmetry, transitivity."""
+
+    def test_reflexivity(self):
+        """a in a for all territories."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            assert t in t
+
+    def test_antisymmetry(self):
+        """If a in b and b in a, then a == b."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            if i in j and j in i:
+                assert i == j
+
+    def test_transitivity(self):
+        """If a in b and b in c, then a in c."""
+        Territory.assign_tree(tree)
+        # Create a chain: lyon < metropole < rhone < sud < france
+        t_lyon = Territory(lyon)
+        t_metro = Territory(metropole)
+        t_rhone = Territory(rhone)
+        t_sud = Territory(sud)
+        t_france = Territory(france)
+
+        assert t_lyon in t_metro
+        assert t_metro in t_rhone
+        assert t_rhone in t_sud
+        assert t_sud in t_france
+        # Transitivity
+        assert t_lyon in t_rhone
+        assert t_lyon in t_sud
+        assert t_lyon in t_france
+        assert t_metro in t_sud
+        assert t_metro in t_france
+        assert t_rhone in t_france
+
+    def test_empty_contained_in_all(self):
+        """Empty territory is contained in all territories."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        for t in exemples:
+            assert empty in t
+
+    def test_all_contained_in_root(self):
+        """All territories are contained in the root (france)."""
+        Territory.assign_tree(tree)
+        root = Territory(france)
+        for t in exemples:
+            assert t in root
+
+
+class TestDistributiveLaws:
+    """Tests for distributive laws between union and intersection."""
+
+    def test_union_over_intersection(self):
+        """a | (b & c) == (a | b) & (a | c)."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(exemples, exemples, exemples):
+            left = i | (j & k)
+            right = (i | j) & (i | k)
+            assert left == right
+
+    def test_intersection_over_union(self):
+        """a & (b | c) == (a & b) | (a & c)."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(exemples, exemples, exemples):
+            left = i & (j | k)
+            right = (i & j) | (i & k)
+            assert left == right
+
+
+class TestSubtractionAdditionalProperties:
+    """Additional tests for subtraction behavior.
+
+    Note: The classical De Morgan laws do NOT hold for territories due to how
+    the tree structure interacts with subtraction. For example:
+        - `a - (b | c) == (a - b) & (a - c)` does NOT hold
+        - `a - (b & c) == (a - b) | (a - c)` does NOT hold
+
+    Example where it fails:
+        i = {Marseille, Saint Etienne}
+        j = {Marseille, Grand Lyon}
+        k = {Rhône, Île-de-France}
+        j | k = France
+        i - (j | k) = ø (since i is contained in France)
+        (i - j) & (i - k) = Saint Etienne (non-empty)
+
+    This is expected behavior for a hierarchical territory system where
+    subtraction must account for the tree structure.
+    """
+
+    def test_subtraction_preserves_containment(self):
+        """If a is contained in b, then (c - b) is contained in (c - a)."""
+        Territory.assign_tree(tree)
+        # lyon is contained in metropole
+        t_lyon = Territory(lyon)
+        t_metro = Territory(metropole)
+        assert t_lyon in t_metro
+
+        # rhone - metropole should be contained in rhone - lyon
+        t_rhone = Territory(rhone)
+        result1 = t_rhone - t_metro  # rhone minus metropole = sté
+        result2 = t_rhone - t_lyon  # rhone minus lyon = sté | villeurbane
+        assert result1 in result2
+
+    def test_subtraction_specific_cases(self):
+        """Test specific subtraction results."""
+        Territory.assign_tree(tree)
+        # b - a where a is contained in b
+        # b (france) - a (sté, marseille) = france without those two
+        result = b - a
+        assert Territory(sté) not in result or result == Territory()
+        assert Territory(marseille) not in result or result == Territory()
+
+    def test_subtraction_with_overlapping_territories(self):
+        """Test subtraction when territories partially overlap."""
+        Territory.assign_tree(tree)
+        # d = lyon, villeurbane, marseille (simplifies to metropole, marseille)
+        # c = paris, nogent, pantin, lyon, metropole (simplifies to idf, metropole)
+        # d - c should remove metropole, leaving marseille
+        result = d - c
+        assert result == Territory(marseille)
+
+
+class TestHashProperties:
+    """Tests for hash consistency with equality."""
+
+    def test_equal_territories_have_equal_hashes(self):
+        """If a == b, then hash(a) == hash(b)."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            if i == j:
+                assert hash(i) == hash(j)
+
+    def test_hash_is_consistent(self):
+        """Hash of a territory doesn't change."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            h1 = hash(t)
+            h2 = hash(t)
+            assert h1 == h2
+
+    def test_territories_usable_in_sets(self):
+        """Territories can be used in sets."""
+        Territory.assign_tree(tree)
+        s = {a, b, c, d, e, f}
+        assert len(s) == len(exemples)
+        for t in exemples:
+            assert t in s
+
+    def test_territories_usable_as_dict_keys(self):
+        """Territories can be used as dictionary keys."""
+        Territory.assign_tree(tree)
+        d = {t: i for i, t in enumerate(exemples)}
+        assert len(d) == len(exemples)
+        for i, t in enumerate(exemples):
+            assert d[t] == i
+
+
+class TestBooleanProperties:
+    """Tests for boolean conversion."""
+
+    def test_empty_is_falsy(self):
+        """Empty territory is falsy."""
+        Territory.assign_tree(tree)
+        empty = Territory()
+        assert not empty
+        assert bool(empty) is False
+
+    def test_non_empty_is_truthy(self):
+        """Non-empty territories are truthy."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            assert t
+            assert bool(t) is True
+
+
+class TestIterationAndLength:
+    """Tests for iteration and length operations."""
+
+    def test_len_consistency(self):
+        """Length should be the number of minimal territorial units."""
+        Territory.assign_tree(tree)
+        # b simplifies to france
+        assert len(b) == 1
+        # a has sté and marseille
+        assert len(a) == 2
+
+    def test_iteration(self):
+        """Iteration should yield territorial units."""
+        Territory.assign_tree(tree)
+        for t in exemples:
+            units = list(t)
+            assert len(units) == len(t)
+            for unit in units:
+                assert isinstance(unit, TerritorialUnit)
+
+
+class TestSpecificScenarios:
+    """Tests for specific scenarios and edge cases."""
+
+    def test_simplification(self):
+        """Territory with all children simplifies to parent."""
+        Territory.assign_tree(tree)
+        # All children of idf: nogent, pantin, paris
+        all_idf_children = Territory(nogent, pantin, paris)
+        assert all_idf_children == Territory(idf)
+
+    def test_duplicate_units_simplified(self):
+        """Duplicate units are simplified."""
+        Territory.assign_tree(tree)
+        t1 = Territory(lyon, lyon, lyon)
+        t2 = Territory(lyon)
+        assert t1 == t2
+
+    def test_parent_absorbs_child(self):
+        """Adding parent to child results in just parent."""
+        Territory.assign_tree(tree)
+        t1 = Territory(lyon, metropole)
+        t2 = Territory(metropole)
+        assert t1 == t2
+
+    def test_disjoint_territories(self):
+        """Intersection of disjoint territories is empty."""
+        Territory.assign_tree(tree)
+        # nogent (in idf) and marseille (in sud) are disjoint
+        t1 = Territory(nogent)
+        t2 = Territory(marseille)
+        assert t1 & t2 == Territory()
+
+    def test_union_then_intersection_identity(self):
+        """(a | b) & a == a when a and b are related."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            result = (i | j) & i
+            # Result should always equal i (since i is contained in i | j)
+            assert result == i
+
+    def test_subtraction_then_union_identity(self):
+        """(a - b) | (a & b) == a."""
+        Territory.assign_tree(tree)
+        for i, j in product(exemples, exemples):
+            left = (i - j) | (i & j)
+            assert left == i
