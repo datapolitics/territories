@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.3.1"
+version = "0.3.3"
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"

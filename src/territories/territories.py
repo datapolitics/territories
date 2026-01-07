@@ -9,8 +9,8 @@ import json_fix  # noqa: F401
 import rustworkx as rx
 
 from pathlib import Path
-from itertools import chain
 from json import JSONDecodeError
+from itertools import chain, product
 from importlib.resources import files
 from functools import lru_cache, reduce
 from typing import Any, NamedTuple, override
@@ -408,7 +408,7 @@ class Territory:
         Returns:
             Territory: A new Territory object containing all elements
         """
-        args: tuple[Territory | TerritorialUnit] = tuple(collapse(others, base_type=Territory))
+        args: tuple[Territory | TerritorialUnit, ...] = tuple(collapse(others, base_type=Territory))
         match args:
             case ():
                 return Territory()  # PyRight is wrong, this is run when args is an empty tuple
@@ -417,7 +417,14 @@ class Territory:
             case (x,) if isinstance(x, TerritorialUnit):
                 return Territory(x)
             case _:
-                return reduce(lambda x, y: x + y, (x if isinstance(x, Territory) else Territory(x) for x in args))
+                # Collect all territorial units first to avoid O(N²) from repeated minimize calls
+                all_units: list[TerritorialUnit] = []
+                for x in args:
+                    if isinstance(x, Territory):
+                        all_units.extend(x.territorial_units)
+                    else:
+                        all_units.append(x)
+                return Territory(*all_units)
 
     @classmethod
     def intersection(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
@@ -641,7 +648,7 @@ class Territory:
                 except NotOnTreeError:
                     wrong_elements.add(name)
             verb = "were" if len(wrong_elements) > 1 else "was"
-            wrong_elements = ", ".join(str(e) for e in wrong_elements)
+            wrong_elements = ", ".join(sorted(str(e) for e in wrong_elements))
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
 
     def __init__(self, *args: TerritorialUnit) -> None:
@@ -762,7 +769,13 @@ class Territory:
         if self in other:
             return self
 
-        return Territory.union(*(self & child for child in other.territorial_units))
+        # Directly collect _and results to avoid creating intermediate Territory objects
+        return Territory(*chain(*(self._and(a, b) for a, b in product(self.territorial_units, other.territorial_units))))
+        # all_units: list[TerritorialUnit] = []
+        # for other_child in other.territorial_units:
+            # for self_child in self.territorial_units:
+                # all_units.extend(self._and(self_child, other_child))
+        # return Territory(*all_units)
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
         if isinstance(other, TerritorialUnit):
