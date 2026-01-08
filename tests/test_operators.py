@@ -478,22 +478,32 @@ class TestDistributiveLaws:
 class TestSubtractionAdditionalProperties:
     """Additional tests for subtraction behavior.
 
-    Note: The classical De Morgan laws do NOT hold for territories due to how
-    the tree structure interacts with subtraction. For example:
-        - `a - (b | c) == (a - b) & (a - c)` does NOT hold
-        - `a - (b & c) == (a - b) | (a - c)` does NOT hold
+    The classical De Morgan laws hold for territories:
+        - `a - (b | c) == (a - b) & (a - c)`
+        - `a - (b & c) == (a - b) | (a - c)`
 
-    Example where it fails:
+    Example:
         i = {Marseille, Saint Etienne}
         j = {Marseille, Grand Lyon}
         k = {Rhône, Île-de-France}
         j | k = France
         i - (j | k) = ø (since i is contained in France)
-        (i - j) & (i - k) = Saint Etienne (non-empty)
-
-    This is expected behavior for a hierarchical territory system where
-    subtraction must account for the tree structure.
+        (i - j) = Saint Etienne
+        (i - k) = Marseille
+        (i - j) & (i - k) = Marseille & Saint Etienne = ø ✓
     """
+
+    def test_de_morgan_law_1(self):
+        """Test that a - (b | c) == (a - b) & (a - c)."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(examples, examples, examples):
+            assert i - (j | k) == (i - j) & (i - k)
+
+    def test_de_morgan_law_2(self):
+        """Test that a - (b & c) == (a - b) | (a - c)."""
+        Territory.assign_tree(tree)
+        for i, j, k in product(examples, examples, examples):
+            assert i - (j & k) == (i - j) | (i - k)
 
     def test_subtraction_preserves_containment(self):
         """If a is contained in b, then (c - b) is contained in (c - a)."""
