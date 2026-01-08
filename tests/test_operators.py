@@ -58,7 +58,7 @@ d = Territory(lyon, villeurbane, marseille)
 e = Territory(rhone, idf)
 f = Territory(idf, marseille, metropole)
 
-all_nodes = tuple(tree.nodes())
+all_nodes = [Territory(n) for n in tree.nodes()]
 examples = (a, b, c, d, e, f)
 
 
@@ -392,7 +392,7 @@ class TestSubtractionProperties:
         Territory.assign_tree(tree)
         for a, b in product(all_nodes, all_nodes):
             if a in b:
-                assert (a - b).isempty()
+                assert (a - b).is_empty()
 
     def test_subtraction_complement(self):
         """(a | b) - b should be contained in a."""

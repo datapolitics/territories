@@ -104,11 +104,11 @@ class Territory:
                             postal_code = None
                     except (JSONDecodeError, TypeError):
                         postal_code = e
-        
+
         if postal_code is not None:
             if not isinstance(postal_code, str):
                 logger.warning(f"Postal code for {node.label} is not the correct type : {postal_code}")
-        
+
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
@@ -556,7 +556,9 @@ class Territory:
     def _sub(cls, a: TerritorialUnit, b: TerritorialUnit) -> set[TerritorialUnit]:
         if a == b:
             return set()
-        if a.tree_id in rx.ancestors(cls.tree, b.tree_id):
+        if b.tree_id in rx.ancestors(cls.tree, a.tree_id):  # b contains a
+            return set()
+        if a.tree_id in rx.ancestors(cls.tree, b.tree_id):  # a contains b
             children = cls.tree.successors(a.tree_id)
             return set().union(*(cls._sub(child, b) for child in children))
         return {a}
