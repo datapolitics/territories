@@ -1,4 +1,5 @@
 from __future__ import annotations
+from operator import pos
 
 import os
 import json
@@ -103,7 +104,11 @@ class Territory:
                             postal_code = None
                     except (JSONDecodeError, TypeError):
                         postal_code = e
-
+        
+        if postal_code is not None:
+            if not isinstance(postal_code, str):
+                logger.warning(f"Postal code for {node.label} is not the correct type : {postal_code}")
+        
         return TerritorialUnit(
             name=node.label,
             atomic=atomic,
@@ -797,7 +802,7 @@ class Territory:
     @override
     def __repr__(self) -> str:
         if self.territorial_units:
-            return "|".join(str(e) for e in sorted(self.territorial_units, reverse=True))
+            return " | ".join(str(e) for e in sorted(self.territorial_units, reverse=True))
         return "ø"
 
     if HAS_PYDANTIC:
