@@ -1,5 +1,4 @@
 from __future__ import annotations
-from operator import pos
 
 import os
 import json
@@ -452,7 +451,7 @@ class Territory:
                 return reduce(lambda x, y: x & y, (x if isinstance(x, Territory) else Territory(x) for x in args))
 
     @classmethod
-    def LCA(cls, *others: Territory | TerritorialUnit) -> TerritorialUnit | None:
+    def LCA(cls, *others: Territory | TerritorialUnit) -> TerritorialUnit:
         """Return the lowest common ancestor of the given territorial units.
         If Territory objects are given, it will use their corresponding territorial units.
 
@@ -474,11 +473,13 @@ class Territory:
         tus: set[TerritorialUnit] = set().union(
             *({e} if isinstance(e, TerritorialUnit) else e.territorial_units for e in others)
         )
+        if len(tus) == 1:
+            return tus.pop()
         common_ancestors: set[int] = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in tus))
         match len(common_ancestors):
             case 0:
-                return None
-                # raise EmptyTerritoryError("No common ancestor found")
+                # not possible, this is a tree
+                raise RuntimeError("Territory tree invariant violated: no root ancestor found for given nodes")
             case 1:
                 return cls.tree.get_node_data(common_ancestors.pop())
             case _:

@@ -67,14 +67,6 @@ def load_tree():
     with open("tests/full_territorial_tree.gzip", "rb") as file:
         Territory.load_tree_from_bytes(gzip.decompress(file.read()))
 
-
-@pytest.fixture
-def load_tree():
-    Territory.reset()
-    with open("tests/full_territorial_tree.gzip", "rb") as file:
-        Territory.load_tree_from_bytes(gzip.decompress(file.read()))
-
-
 def test_equality():
     Territory.assign_tree(tree)
 
