@@ -36,7 +36,7 @@ with open(str(data_file), "r") as f:
 
 logger = logging.getLogger(__name__)
 
-CHECKSUM = "current version is A2FH9"
+CHECKSUM = "current version is A2FH96"
 
 
 class OrphanNode(NamedTuple):
@@ -170,9 +170,9 @@ class Territory:
                 except ValueError:
                     raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
                 if checksum != CHECKSUM:
-                    raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
+                    raise Exception("Your territorial tree file is deprecated since version `0.3.6`. Rebuild it and try again.")
         except FileNotFoundError:
-            raise MissingTreeCache(f"Tree object was not found at {path}")
+            raise MissingTreeCache(f"Tree object was not found at {path}") from None
 
         cls.root_index = next(i for i in cls.tree.node_indices() if cls.tree.in_degree(i) == 0)
         names = [cls.tree.get_node_data(i).tu_id for i in cls.tree.node_indices()]
