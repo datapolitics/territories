@@ -19,24 +19,3 @@ def test_build_tree():
     ]
 
     Territory.build_tree(nodes, save_tree=False)
-
-
-# @pytest.mark.filterwarnings("ignore:You should not use this internal module")
-# def test_create_from_stream():
-#     with create_connection("crawling") as cnx:
-#         Territory.build_tree(data_stream=stream_tu_table(cnx))
-
-
-# @pytest.mark.filterwarnings("ignore:You should not use this internal module")
-# @pytest.mark.asyncio
-# async def test_create_from_async_stream():
-#     async with async_create_connection("crawling") as cnx:
-#         await Territory.async_build_tree(async_data_stream=async_stream_tu_table(cnx))
-
-
-# def test_to_bytes():
-#     # save tree to file
-#     raw_tree = Territory.save_tree(return_bytes=True)
-#     assert raw_tree is not None
-#     with open("full_territorial_tree.gzip", "wb") as file:
-#         file.write(gzip.compress(raw_tree))

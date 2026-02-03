@@ -1,6 +1,6 @@
 [project]
 name = "territories"
-version = "0.3.5"
+version = "0.3.6"
 authors = [{ name = "Timo", email = "timothee@datapolitics.fr" }]
 description = "Manage territories."
 readme = "README.md"
@@ -31,13 +31,18 @@ build-backend = "uv_build"
 dev = [
     "asyncpg>=0.30.0",
     "ipykernel>=6.29.5",
-    "psycopg>=3.2.9",
+    "psycopg[binary]>=3.2.9",
     "pydantic>=2.10.6",
     "pytest-asyncio>=1.1.0",
     "pytest>=8.3.4",
     "pytest-benchmark>=5.1.0",
+    "pympler>=1.1",
+    "memray>=1.19.1",
 ]
 
+
+[tool.uv]
+default-groups = ["dev"]
 
 [[tool.uv.index]]
 name = "datapolitics"
