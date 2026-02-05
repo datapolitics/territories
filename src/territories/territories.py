@@ -170,7 +170,10 @@ class Territory:
                 except ValueError:
                     raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
                 if checksum != CHECKSUM:
-                    raise Exception("Your territorial tree file is deprecated since version `0.3.6`. Rebuild it and try again.")
+                    raise Exception(
+                        f"The territorial tree file at '{path}' is outdated and incompatible with this version. "
+                        f"Please delete it or rebuild it to continue."
+                    )
         except FileNotFoundError:
             raise MissingTreeCache(f"Tree object was not found at {path}") from None
 
@@ -781,8 +784,8 @@ class Territory:
         return Territory(*chain(*(self._and(a, b) for a, b in product(self.territorial_units, other.territorial_units))))
         # all_units: list[TerritorialUnit] = []
         # for other_child in other.territorial_units:
-            # for self_child in self.territorial_units:
-                # all_units.extend(self._and(self_child, other_child))
+        # for self_child in self.territorial_units:
+        # all_units.extend(self._and(self_child, other_child))
         # return Territory(*all_units)
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
