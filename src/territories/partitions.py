@@ -73,7 +73,9 @@ class Partition(Enum):
         return NotImplemented
 
 
-@dataclass(frozen=True)
+# here, using slots=True reduces the gzipped size from 818K to 803K
+# and reduce loaded tree from 39MB to 31MB (around 20% less memory usage)
+@dataclass(frozen=True, slots=True)
 class TerritorialUnit:
     """A known territory, such as a city, a departement or a region."""
 

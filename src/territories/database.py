@@ -28,6 +28,7 @@ class NodeTuple:
     label: str
     parent_id: str | None = None
     inhabitants: int | None = None
+    postal_code: str | None = None
 
 
 load_dotenv()
@@ -62,7 +63,8 @@ def create_connection(database: str, connection_url: str | None = None):
         port = os.environ["DB_PORT"]
         hostname = os.environ["DB_HOST"]
         connection_string = (
-            os.environ["DB_URL"] or f"dbname={database} user={username} password={password} host={hostname} port={port}"
+            os.environ.get("CRAWLING_DB_URL")
+            or f"dbname={database} user={username} password={password} host={hostname} port={port}"
         )
         connection = psycopg.connect(connection_string)
     try:
@@ -120,7 +122,7 @@ def borrow_connection(connection):
             cursor.close()
 
 
-def read_stream(
+def _read_stream_internal_function_do_not_use(
     connection,
     table: str,
     elements: Optional[Iterable] = None,
@@ -161,8 +163,10 @@ def stream_tu_table(cnx) -> Iterable[Node]:
     warnings.warn("You should not use this internal module, stream the database by yourself", UserWarning)
 
     data_stream = (
-        NodeTuple(id=e[0], level=e[1], label=e[2], parent_id=e[3], inhabitants=e[4])
-        for e in read_stream(cnx, "tu", ["id", "level", "label", "parent_id", "inhabitants"])
+        NodeTuple(id=e[0], level=e[1], label=e[2], parent_id=e[3], inhabitants=e[4], postal_code=e[5])
+        for e in _read_stream_internal_function_do_not_use(
+            cnx, "tu", ["id", "level", "label", "parent_id", "inhabitants", "postal_code"]
+        )
     )
     return iter(data_stream)
 
@@ -181,9 +185,11 @@ async def async_stream_tu_table(cnx) -> AsyncIterable[Node]:
     if asyncpg is None:
         raise Exception("Install the async optional dependency to use async database operations (uv add 'territories[async]')")
 
-    query = "SELECT id, level, label, parent_id, inhabitants FROM tu;"
+    query = "SELECT id, level, label, parent_id, inhabitants, postal_code FROM tu;"
     async for record in cnx.cursor(query):
-        yield NodeTuple(id=record[0], level=record[1], label=record[2], parent_id=record[3], inhabitants=record[4])
+        yield NodeTuple(
+            id=record[0], level=record[1], label=record[2], parent_id=record[3], inhabitants=record[4], postal_code=record[5]
+        )
 
 
 # Usage example for async functions:
@@ -191,8 +197,3 @@ async def async_stream_tu_table(cnx) -> AsyncIterable[Node]:
 #     async with async_create_connection("crawling") as cnx:
 #         async for node in async_stream_tu_table(cnx):
 #             print(f"Node: {node.id} - {node.label}")
-
-if __name__ == "__main__":
-    with create_connection("crawling") as cnx:
-        for element in read_stream(cnx, "tu", ["id", "level", "label", "parent_id", "postal_code"]):
-            print(element)
