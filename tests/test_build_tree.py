@@ -18,4 +18,4 @@ def test_build_tree():
         NodeTuple(id="COM:Marseille", label="Marseille", level="COM", parent_id="REG:Sud"),
     ]
 
-    Territory.build_tree(nodes, save_tree=False)
+    Territory.build_tree(nodes, save_tree=True, filepath='/tmp/foo.pickle')

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import fcntl
 import os
 import json
 import pickle
 import logging
+import time
+
 import json_fix  # noqa: F401
 
 import rustworkx as rx
@@ -28,11 +31,9 @@ try:
 except ImportError:
     HAS_PYDANTIC = False
 
-
 data_file = files("territories").joinpath("data/epci_to_comm.json")
 with open(str(data_file), "r") as f:
     LEGACY_CODES: dict[str, list[str]] = json.load(f)
-
 
 logger = logging.getLogger(__name__)
 
@@ -152,13 +153,14 @@ class Territory:
 
         File that can be loaded are the ones created by `Territory.save_tree()`
         """
+        start = time.monotonic()
         cls.reset()
         path = None
         if filepath is None:
             cache_dir = os.environ.get("API_CACHE_DIR") or os.environ.get("CACHE_DIR")
             if cache_dir is None:
                 raise MissingTreeCache("No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
-            path = Path(cache_dir, "territorial_tree_state.pickle")
+            path = Path(cache_dir, "territorial_tree.pickle")
         if isinstance(filepath, (str, Path, os.PathLike)):
             path = filepath
         if not path:  # wrong behavior, filepath should be any representation of a filepath
@@ -179,6 +181,8 @@ class Territory:
         for name in names:
             assert name == cls.hash(name).tu_id
 
+        logger.info("Initialised territories from local cache in %.2f seconds.", time.monotonic() - start)
+
     @classmethod
     def save_tree(cls, filepath: str | None = None, return_bytes: bool = False) -> bytes | None:
         """Save the territorial tree and the hashmap to a file.
@@ -192,7 +196,7 @@ class Territory:
         path = None
         if filepath is None and not return_bytes:
             try:
-                path = Path(os.environ["API_CACHE_DIR"], "territorial_tree_state.pickle")
+                path = Path(os.environ["API_CACHE_DIR"], "territorial_tree.pickle")
             except KeyError:
                 logger.warning("failed to save the tree in cache directory. Please set the env variable API_CACHE_DIR")
                 return
@@ -290,52 +294,94 @@ class Territory:
             save_tree (bool, optional): Save to disk the constructed tree. Defaults to True.
             filepath (Optional[str], optional): File path to save the tree state to. If not provided, API_CACHE_DIR env. var. will be used. Defaults to None.
         """
-        cls.reset()
 
-        tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
-        mapper: dict[str, int] = {}
-        orphans: list[OrphanNode] = []
-        batch_size = 1024
-        for batch in batched(data_stream, batch_size):
-            entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
+        # resolve cache path
+        if filepath is None:
+            cache_dir = os.environ.get("API_CACHE_DIR", os.environ.get("CACHE_DIR"))
+            if cache_dir is None:
+                raise MissingTreeCache("No filepath is specified and no API_CACHE_DIR or CACHE_DIR env.")
+            cache_path = Path(cache_dir, "territorial_tree.pickle")
+        else:
+            cache_path = Path(filepath)
 
-            for node, tree_idx in zip(batch, entities_indices):
-                if not tree.get_node_data(tree_idx).atomic:
-                    mapper[node.id] = tree_idx
-                object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
+        lock_path = cache_path.with_suffix(".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-            edges: list[tuple[int, int, None]] = []
-            for node, tree_idx in zip(batch, entities_indices):
-                if node.parent_id in mapper:
-                    edges.append((mapper[node.parent_id], tree_idx, None))
-                else:
-                    if node.parent_id:  # do not append root node to orphans
-                        # object.__setattr__(node, 'tree_id', tree_idx)
-                        # orphans.append(node)
+        with open(lock_path, "w") as lock_fd:
+            is_builder = False
 
-                        # this is a lot more expensive than updating the node object
-                        # but we have no guarantee that it is mutable (can be a tuple)
-                        orphan = OrphanNode(
-                            id=node.id, parent_id=node.parent_id, label=node.label, level=node.level, tree_id=tree_idx
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                logger.info("Acquired tree build lock.")
+                is_builder = True
+            except BlockingIOError:
+                logger.info("Another process is building the tree. Waiting...")
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                logger.info("Tree build finished by another process.")
+
+            try:
+                if is_builder:
+                    logger.info("Building territorial tree.")
+
+                    cls.reset()
+
+                    tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
+                    mapper: dict[str, int] = {}
+                    orphans: list[OrphanNode] = []
+                    batch_size = 1024
+                    for batch in batched(data_stream, batch_size):
+                        entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
+
+                        for node, tree_idx in zip(batch, entities_indices):
+                            if not tree.get_node_data(tree_idx).atomic:
+                                mapper[node.id] = tree_idx
+                            object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
+
+                        edges: list[tuple[int, int, None]] = []
+                        for node, tree_idx in zip(batch, entities_indices):
+                            if node.parent_id in mapper:
+                                edges.append((mapper[node.parent_id], tree_idx, None))
+                            else:
+                                if node.parent_id:  # do not append root node to orphans
+                                    # object.__setattr__(node, 'tree_id', tree_idx)
+                                    # orphans.append(node)
+
+                                    # this is a lot more expensive than updating the node object,
+                                    # but we have no guarantee that it is mutable (can be a tuple)
+                                    orphan = OrphanNode(
+                                        id=node.id,
+                                        parent_id=node.parent_id,
+                                        label=node.label,
+                                        level=node.level,
+                                        tree_id=tree_idx,
+                                    )
+                                    orphans.append(orphan)
+                        _ = tree.add_edges_from(edges)
+
+                    new_edges = tuple(
+                        (mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper
+                    )
+                    _ = tree.add_edges_from(new_edges)
+
+                    last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+                    if last_orphans:
+                        logger.warning(
+                            f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
                         )
-                        orphans.append(orphan)
-            _ = tree.add_edges_from(edges)
 
-        new_edges = tuple((mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper)
-        _ = tree.add_edges_from(new_edges)
+                    cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
+                    cls.tree = tree
+                    cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
-        last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
-        if last_orphans:
-            logger.warning(
-                f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
-            )
+                    if save_tree:
+                        _ = cls.save_tree(filepath=filepath)
 
-        cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
-        cls.tree = tree
-        cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+            finally:
+                logger.info("Releasing tree build lock.")
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
-        if save_tree:
-            _ = cls.save_tree(filepath=filepath)
+            # --- ensure all workers load the same tree
+            cls.load_tree(cache_path)
 
     @classmethod
     def assign_tree(cls, tree: rx.PyDiGraph[TerritorialUnit, None]):
@@ -781,8 +827,8 @@ class Territory:
         return Territory(*chain(*(self._and(a, b) for a, b in product(self.territorial_units, other.territorial_units))))
         # all_units: list[TerritorialUnit] = []
         # for other_child in other.territorial_units:
-            # for self_child in self.territorial_units:
-                # all_units.extend(self._and(self_child, other_child))
+        # for self_child in self.territorial_units:
+        # all_units.extend(self._and(self_child, other_child))
         # return Territory(*all_units)
 
     def __sub__(self, other: Territory | TerritorialUnit) -> Territory:
