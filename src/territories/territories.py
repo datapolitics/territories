@@ -157,7 +157,7 @@ class Territory:
         cls.reset()
         path = None
         if filepath is None:
-            cache_dir = os.environ.get("API_CACHE_DIR") or os.environ.get("CACHE_DIR")
+            cache_dir = os.environ.get("API_CACHE_DIR", os.environ.get("CACHE_DIR"))
             if cache_dir is None:
                 raise MissingTreeCache("No filepath is specified and you have no API_CACHE_DIR or CACHE_DIR env. variable")
             path = Path(cache_dir, "territorial_tree.pickle")
@@ -199,10 +199,14 @@ class Territory:
         path = None
         if filepath is None and not return_bytes:
             try:
-                path = Path(os.environ["API_CACHE_DIR"], "territorial_tree.pickle")
+                path = Path(
+                    os.environ.get("API_CACHE_DIR", os.environ.get("CACHE_DIR")), "territorial_tree.pickle"
+                )
             except KeyError:
-                logger.warning("failed to save the tree in cache directory. Please set the env variable API_CACHE_DIR")
-                return
+                logger.warning(
+                    "failed to save the tree in cache directory. Please set the env variable API_CACHE_DIR or CACHE_DIR"
+                )
+                return None
         if isinstance(filepath, str):
             path = filepath
         if path:
@@ -212,6 +216,7 @@ class Territory:
             return pickle.dumps((CHECKSUM, cls.name_to_id, cls.tree))
         if path is None and not return_bytes:
             raise Exception("You must provide a filepath or set the API_CACHE_DIR env. variable, or use return_bytes=True")
+        return None
 
     @classmethod
     async def async_build_tree(
