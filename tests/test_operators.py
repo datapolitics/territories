@@ -131,7 +131,7 @@ def test_intersection():
 
 @pytest.fixture
 def complex_territory(load_tree):
-    with open("tests/big_territory.txt", "r") as f:
+    with gzip.open("tests/big_territory.gzip", "rt") as f:
         file_ids = {s.strip() for s in f.readlines()} - {""}
     return Territory.from_tu_ids(file_ids)
 
