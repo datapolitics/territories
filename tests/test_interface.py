@@ -246,6 +246,16 @@ def test_creation_small(load_tree, benchmark):
     benchmark.pedantic(Territory.from_tu_ids, setup=setup_small, rounds=1000)
 
 
+def read_entities_gzip():
+    with gzip.open("tests/entities.gzip", "rt") as file:
+        for line in file:
+            Territory.from_tu_ids(line.strip().split())
+
+
+def test_creation_from_entities_gzip(load_tree, benchmark):
+    benchmark.pedantic(read_entities_gzip, rounds=1)
+
+
 def setup_minimized():
     ter = Territory(*sample(Territory.tree.nodes(), 4))
     names = [tu.tu_id for tu in ter]

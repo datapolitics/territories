@@ -23,8 +23,8 @@ jobs:
       UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PSWD }}
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6 # uv build does not need a python install      
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7 # uv build does not need a python install      
       - name: Upload package
         run: |
           uv build
