@@ -127,6 +127,7 @@ class Territory:
         cls.tree = rx.PyDiGraph()
         cls.root_index = 0
         cls.name_to_id = {}
+        cls._ancestors.cache_clear()
 
     @classmethod
     def load_tree_from_bytes(cls, data: bytes):
@@ -199,9 +200,7 @@ class Territory:
         path = None
         if filepath is None and not return_bytes:
             try:
-                path = Path(
-                    os.environ.get("API_CACHE_DIR", os.environ.get("CACHE_DIR")), "territorial_tree.pickle"
-                )
+                path = Path(os.environ.get("API_CACHE_DIR", os.environ.get("CACHE_DIR")), "territorial_tree.pickle")
             except KeyError:
                 logger.warning(
                     "failed to save the tree in cache directory. Please set the env variable API_CACHE_DIR or CACHE_DIR"
@@ -428,7 +427,7 @@ class Territory:
         return cls.tree.successors(tu.tree_id)
 
     @staticmethod
-    @lru_cache(maxsize=256)
+    @lru_cache(maxsize=1024)
     def _ancestors(tree: rx.PyDiGraph, node: int) -> set[int]:
         return rx.ancestors(tree, node)
 
@@ -438,24 +437,44 @@ class Territory:
 
     @classmethod
     def minimize(cls, node: int, items: set[int]) -> set[int]:
-        """Make sure the representation of a Territory is always minimal."""
+        """Make sure the representation of a Territory is always minimal.
+
+        Uses a bottom-up algorithm: first removes items that are descendants
+        of other items in the set, then iteratively merges complete sibling
+        sets into their parent.
+        """
         if not items:
             return set()
-        if node in items:
-            return {node}
-        children = set(cls.tree.successor_indices(node))
-        valids = children & items  # O(min(children, items))
-        if len(valids) == len(children):
-            return {node}
-        for valid in valids:
-            items.remove(valid)
-        for child in children:
-            if child not in valids and cls.tree.out_degree(child):
-                if any(node in cls._ancestors(cls.tree, item) for item in items):
-                    valids.update(cls.minimize(child, items))
-        if valids == children:
-            return {node}
-        return valids
+
+        result = set(items)
+
+        # Step 1: Remove items that are descendants of other items in the set
+        to_remove = set()
+        for item in result:
+            if cls._ancestors(cls.tree, item) & result:
+                to_remove.add(item)
+        result -= to_remove
+
+        # Step 2: Iteratively merge complete sibling sets into their parent
+        changed = True
+        while changed:
+            changed = False
+            parent_children: dict[int, list[int]] = {}
+            for item in result:
+                preds = cls.tree.predecessor_indices(item)
+                if preds:
+                    parent = preds[0]
+                    if parent not in parent_children:
+                        parent_children[parent] = []
+                    parent_children[parent].append(item)
+            for parent, children_in_result in parent_children.items():
+                if len(children_in_result) == len(cls.tree.successor_indices(parent)):
+                    for c in children_in_result:
+                        result.discard(c)
+                    result.add(parent)
+                    changed = True
+
+        return result
 
     @classmethod
     def union(cls, *others: Territory | TerritorialUnit | Iterable[Territory | TerritorialUnit]) -> Territory:
@@ -699,9 +718,15 @@ class Territory:
             # return cls()
         all_codes: tuple[str, ...] = tuple(cls.assert_string(s) for s in collapse(args))
         tu_ids: Iterable[str] = iter(collapse(LEGACY_CODES.get(code, code) for code in all_codes))
+        name_to_id = cls.name_to_id
         try:
-            entities_idxs = {cls.hash(tu) for tu in tu_ids}
-            return Territory(*entities_idxs)
+            indices: set[int] = set()
+            for tu in tu_ids:
+                try:
+                    indices.add(name_to_id[tu])
+                except KeyError:
+                    raise NotOnTreeError(tu)
+            return cls._from_indices(indices)
         except NotOnTreeError as e:
             wrong_elements = {e}
             for name in tu_ids:
@@ -712,6 +737,17 @@ class Territory:
             verb = "were" if len(wrong_elements) > 1 else "was"
             wrong_elements = ", ".join(sorted(str(e) for e in wrong_elements))
             raise NotOnTreeError(f"{wrong_elements} {verb} not found in the territorial tree") from e
+
+    @classmethod
+    def _from_indices(cls, indices: set[int]) -> Territory:
+        """Create a Territory directly from tree node indices, bypassing TerritorialUnit lookup."""
+        t = object.__new__(cls)
+        if indices:
+            minimized = cls.minimize(cls.root_index, indices)
+            t.territorial_units = frozenset(cls.tree.get_node_data(i) for i in minimized)
+        else:
+            t.territorial_units = frozenset()
+        return t
 
     def __init__(self, *args: TerritorialUnit) -> None:
         """Create a Territory instance.
