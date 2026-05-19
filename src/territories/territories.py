@@ -21,7 +21,7 @@ from collections.abc import Iterable, AsyncIterable
 from more_itertools import batched, collapse, flatten
 
 from territories.partitions import TerritorialUnit, Partition, Node
-from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError
+from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError, InvalidTreeCache
 
 try:
     from pydantic_core import CoreSchema, core_schema
@@ -171,9 +171,9 @@ class Territory:
                 try:
                     checksum, cls.name_to_id, cls.tree = pickle.load(file)
                 except ValueError:
-                    raise Exception("The file is not a valid territorial tree cache. Delete it and try again.")
+                    raise InvalidTreeCache("The file is not a valid territorial tree cache. Delete it and try again.")
                 if checksum != CHECKSUM:
-                    raise Exception(
+                    raise InvalidTreeCache(
                         f"The territorial tree file at '{path}' is outdated and incompatible with this version. "
                         f"Please delete it or rebuild it to continue."
                     )
