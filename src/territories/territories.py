@@ -902,74 +902,80 @@ class Territory:
         # this method should raise specific Pydantic Exceptions
         @classmethod
         def __get_pydantic_core_schema__(cls, source_type: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
-            """This is used by Pydantic to generate the schema for the Territory class.
-            It needs to handle all possible ways to create a Territory object.
+            """Build the Pydantic schema for ``Territory``.
+
+            Accepted inputs:
+            - a ``Territory`` instance
+            - a single territorial unit id string
+            - an iterable of territorial unit id strings
+            - the JSON-serialized representation produced by this class
             """
 
-            # parse incoming values into Territory
-            def validate(value: Any):
-                if isinstance(value, cls):
-                    return value
-                # accept list/tuple/set of string ids
-                if isinstance(value, (list, tuple, set)):
-                    if value and all(isinstance(item, dict) and "tu_id" in item for item in value):
-                        return cls.from_tu_ids(item["tu_id"] for item in value)
-                    return cls.from_tu_ids(value)
-                # accept a single string id
-                if isinstance(value, str):
-                    return cls.from_tu_ids(value)
-                raise TypeError(f"Cannot build {cls.__name__} from {type(value)!r}")
-
             def serialize(value: Territory):
-                out = []
-                for tu in value:
-                    # ensure we turn each TerritorialUnit into primitives:
-                    d = tu.to_dict()
-                    d["level"] = d["level"].name
-                    out.append(d)
-                return out
+                return [
+                    {
+                        **tu.to_dict(),
+                        "level": tu.level.name,
+                    }
+                    for tu in value
+                ]
 
-            json_input_schema = core_schema.list_schema(
-                core_schema.union_schema(
-                    [
-                        core_schema.str_schema(),
-                        core_schema.typed_dict_schema(
-                            {
-                                "tu_id": core_schema.typed_dict_field(core_schema.str_schema()),
-                                "name": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
-                                "atomic": core_schema.typed_dict_field(core_schema.bool_schema(), required=False),
-                                "level": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
-                                "postal_code": core_schema.typed_dict_field(
-                                    core_schema.nullable_schema(core_schema.str_schema()), required=False
-                                ),
-                                "inhabitants": core_schema.typed_dict_field(
-                                    core_schema.nullable_schema(core_schema.int_schema()), required=False
-                                ),
-                            }
-                        ),
-                    ]
-                )
+            serialized_tu_schema = core_schema.typed_dict_schema(
+                {
+                    "tu_id": core_schema.typed_dict_field(core_schema.str_schema()),
+                    "name": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
+                    "atomic": core_schema.typed_dict_field(core_schema.bool_schema(), required=False),
+                    "level": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
+                    "postal_code": core_schema.typed_dict_field(
+                        core_schema.nullable_schema(core_schema.str_schema()), required=False
+                    ),
+                    "inhabitants": core_schema.typed_dict_field(
+                        core_schema.nullable_schema(core_schema.int_schema()), required=False
+                    ),
+                }
             )
-
-            python_input_schema = core_schema.union_schema(
+            serialized_list_schema = core_schema.list_schema(
+                core_schema.union_schema([core_schema.str_schema(), serialized_tu_schema])
+            )
+            string_collection_schema = core_schema.union_schema(
                 [
-                    core_schema.is_instance_schema(cls),
                     core_schema.list_schema(core_schema.str_schema()),
                     core_schema.tuple_variable_schema(core_schema.str_schema()),
                     core_schema.set_schema(core_schema.str_schema()),
                 ]
             )
+            serializer = core_schema.plain_serializer_function_ser_schema(serialize, when_used="json")
+
+            def normalize(value: Any) -> Territory:
+                if isinstance(value, cls):
+                    return value
+                if isinstance(value, str):
+                    return cls.from_tu_ids(value)
+                if isinstance(value, (list, tuple, set)):
+                    if value and all(isinstance(item, dict) and "tu_id" in item for item in value):
+                        return cls.from_tu_ids(item["tu_id"] for item in value)
+                    return cls.from_tu_ids(value)
+                raise TypeError(f"Cannot build {cls.__name__} from {type(value)!r}")
+
+            python_schema = core_schema.union_schema(
+                [
+                    core_schema.is_instance_schema(cls),
+                    core_schema.str_schema(),
+                    string_collection_schema,
+                    serialized_list_schema,
+                ]
+            )
 
             return core_schema.json_or_python_schema(
                 json_schema=core_schema.no_info_after_validator_function(
-                    validate,
-                    json_input_schema,
-                    serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
+                    normalize,
+                    core_schema.union_schema([core_schema.str_schema(), serialized_list_schema]),
+                    serialization=serializer,
                 ),
                 python_schema=core_schema.no_info_after_validator_function(
-                    validate,
-                    python_input_schema,
-                    serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
+                    normalize,
+                    python_schema,
+                    serialization=serializer,
                 ),
             )
 
