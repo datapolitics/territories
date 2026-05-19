@@ -37,24 +37,23 @@ def test_parse_fast(benchmark, load_tree):
 
 def test_pydantic(load_tree):
     class TerritoryModel(BaseModel):
+        foo: int
         terr: Territory
 
-    # tus = [t for t in Territory.tree.nodes() if t.name in ("Paris", "Lyon")]
     terr = Territory.from_tu_ids("DEP:75", "COM:69132")
 
-    # TerritoryModel(terr='["DEP:69", "COM:69132"]')
-    # TerritoryModel(terr='[]')
-    # TerritoryModel(terr=tus)
-    TerritoryModel(terr={"DEP:69", "COM:69132"})
-    TerritoryModel(terr=["DEP:69", "COM:69132"])
-    TerritoryModel(terr=("DEP:69", "COM:69132"))
-    TerritoryModel(terr=[])
-    model = TerritoryModel(terr=terr)
+    TerritoryModel(foo=1, terr={"DEP:69", "COM:69132"})
+    TerritoryModel(foo=1, terr=["DEP:69", "COM:69132"])
+    TerritoryModel(foo=1, terr=("DEP:69", "COM:69132"))
+    TerritoryModel(foo=1, terr=[])
+    model = TerritoryModel(foo=3, terr=terr)
 
-    assert model.model_dump() == {"terr": terr}
+    dict_repr = {"terr": terr, "foo": 3}
+    assert model.model_dump() == dict_repr
     json_dump = model.model_dump_json()
     print(json_dump)
-    json_reference = json.dumps({"terr": terr})
+    assert TerritoryModel.model_validate_json(json_dump) == model
+    json_reference = json.dumps(dict_repr)
     assert json.loads(json_dump) == json.loads(json_reference)
 
 
