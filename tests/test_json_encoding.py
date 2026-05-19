@@ -1,3 +1,4 @@
+from datetime import date
 import gzip
 import json
 import pytest
@@ -38,23 +39,65 @@ def test_parse_fast(benchmark, load_tree):
 def test_pydantic(load_tree):
     class TerritoryModel(BaseModel):
         foo: int
+        bar: date
         terr: Territory
 
-    terr = Territory.from_tu_ids("DEP:75", "COM:69132")
+    d = date(1999, 11, 1)
+    model_inputs = [
+        {"foo": 1, "bar": d, "terr": {"DEP:69", "COM:69132"}},
+        {"foo": 2, "bar": d, "terr": ["DEP:69", "COM:69132"]},
+        {"foo": 3, "bar": d, "terr": ("DEP:69", "COM:69132")},
+        {"foo": 4, "bar": d, "terr": []},
+        {"foo": 5, "bar": d, "terr": Territory.from_tu_ids("DEP:75", "COM:69132")},
+        {"foo": 6, "bar": d, "terr": Territory.from_tu_ids("DEP:69")},
+    ]
 
-    TerritoryModel(foo=1, terr={"DEP:69", "COM:69132"})
-    TerritoryModel(foo=1, terr=["DEP:69", "COM:69132"])
-    TerritoryModel(foo=1, terr=("DEP:69", "COM:69132"))
-    TerritoryModel(foo=1, terr=[])
-    model = TerritoryModel(foo=3, terr=terr)
+    for payload in model_inputs:
+        model = TerritoryModel.model_validate(payload)
+        dict_repr = {"terr": model.terr, "foo": model.foo, "bar": model.bar}
 
-    dict_repr = {"terr": terr, "foo": 3}
-    assert model.model_dump() == dict_repr
-    json_dump = model.model_dump_json()
-    print(json_dump)
-    assert TerritoryModel.model_validate_json(json_dump) == model
-    json_reference = json.dumps(dict_repr)
-    assert json.loads(json_dump) == json.loads(json_reference)
+        assert model.model_dump() == dict_repr
+        assert TerritoryModel.model_validate_json(model.model_dump_json()) == model
+        assert TerritoryModel.model_validate(model.model_dump(mode="json")) == model
+        assert TerritoryModel.model_validate(model.model_dump()) == model
+
+
+def test_pydantic_serialized_roundtrip(load_tree):
+    class TerritoryModel(BaseModel):
+        foo: int
+        bar: date
+        terr: Territory
+
+    d = date(1999, 11, 1)
+    base_models = [
+        TerritoryModel(foo=1, bar=d, terr=[]),
+        TerritoryModel(foo=2, bar=d, terr=["DEP:69"]),
+        TerritoryModel(foo=3, bar=d, terr=["DEP:75", "COM:69132"]),
+    ]
+
+    for model in base_models:
+        json_payload = model.model_dump(mode="json")
+        assert TerritoryModel.model_validate(json_payload) == model
+        assert TerritoryModel.model_validate_json(json.dumps(json_payload)) == model
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"foo": 1, "bar": "1999-11-01", "terr": [{"name": "Paris"}]},
+        {"foo": 1, "bar": "1999-11-01", "terr": [123]},
+        {"foo": 1, "bar": "1999-11-01", "terr": ["DEP:75", 123]},
+        {"foo": 1, "bar": "1999-11-01", "terr": [{"tu_id": "DEP:75"}, 123]},
+    ],
+)
+def test_pydantic_invalid_payloads(payload, load_tree):
+    class TerritoryModel(BaseModel):
+        foo: int
+        bar: date
+        terr: Territory
+
+    with pytest.raises(Exception):
+        TerritoryModel.model_validate(payload)
 
 
 if __name__ == "__main__":
