@@ -2,7 +2,11 @@ class MissingTreeException(Exception):
     pass
 
 
-class MissingTreeCache(Exception):
+class MissingTreeCache(MissingTreeException):
+    pass
+
+
+class InvalidTreeCache(MissingTreeException):
     pass
 
 
