@@ -910,8 +910,10 @@ class Territory:
             def validate(value: Any):
                 if isinstance(value, cls):
                     return value
-                # accept list of string ids
-                if isinstance(value, list):
+                # accept list/tuple/set of string ids
+                if isinstance(value, (list, tuple, set)):
+                    if value and all(isinstance(item, dict) and "tu_id" in item for item in value):
+                        return cls.from_tu_ids(item["tu_id"] for item in value)
                     return cls.from_tu_ids(value)
                 # accept a single string id
                 if isinstance(value, str):
@@ -927,18 +929,48 @@ class Territory:
                     out.append(d)
                 return out
 
-            allowed_schema = core_schema.union_schema(
+            json_input_schema = core_schema.list_schema(
+                core_schema.union_schema(
+                    [
+                        core_schema.str_schema(),
+                        core_schema.typed_dict_schema(
+                            {
+                                "tu_id": core_schema.typed_dict_field(core_schema.str_schema()),
+                                "name": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
+                                "atomic": core_schema.typed_dict_field(core_schema.bool_schema(), required=False),
+                                "level": core_schema.typed_dict_field(core_schema.str_schema(), required=False),
+                                "postal_code": core_schema.typed_dict_field(
+                                    core_schema.nullable_schema(core_schema.str_schema()), required=False
+                                ),
+                                "inhabitants": core_schema.typed_dict_field(
+                                    core_schema.nullable_schema(core_schema.int_schema()), required=False
+                                ),
+                            }
+                        ),
+                    ]
+                )
+            )
+
+            python_input_schema = core_schema.union_schema(
                 [
-                    core_schema.list_schema(core_schema.str_schema()),  # accept ["DEP:69", ...]
                     core_schema.is_instance_schema(cls),
+                    core_schema.list_schema(core_schema.str_schema()),
+                    core_schema.tuple_variable_schema(core_schema.str_schema()),
+                    core_schema.set_schema(core_schema.str_schema()),
                 ]
             )
 
-            # use an *after* validator so we can attach the serializer to the schema
-            return core_schema.no_info_after_validator_function(
-                validate,
-                allowed_schema,
-                serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
+            return core_schema.json_or_python_schema(
+                json_schema=core_schema.no_info_after_validator_function(
+                    validate,
+                    json_input_schema,
+                    serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
+                ),
+                python_schema=core_schema.no_info_after_validator_function(
+                    validate,
+                    python_input_schema,
+                    serialization=core_schema.plain_serializer_function_ser_schema(serialize, when_used="json"),
+                ),
             )
 
         # this crash with some validators. Needs to be tested
@@ -969,13 +1001,13 @@ class Territory:
         #         return cls.from_tu_ids(*value)
         #     return cls.from_tu_ids(value)
 
-    @classmethod
-    def _try_parse(cls, input_string: str) -> Territory:
-        try:
-            tus = json.loads(input_string)
-        except json.JSONDecodeError:
-            tus = input_string.split("|")
-        return cls.from_tu_ids(tus)
+        @classmethod
+        def _try_parse(cls, input_string: str) -> Territory:
+            try:
+                tus = json.loads(input_string)
+            except json.JSONDecodeError:
+                tus = input_string.split("|")
+            return cls.from_tu_ids(tus)
 
     def lowest_common_ancestor(self) -> TerritorialUnit | None:
         """Return the lowest common ancestor of the territorial units of this territory.
