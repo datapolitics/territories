@@ -276,6 +276,39 @@ def test_tu_path(load_tree):
     ter = Territory.from_tu_ids("DEP:69", "COM:69132", "DEP:75")
     assert ter.tu_path == ["CNTRY:F", "REG:11", "REG:84", "DEP:69", "DEP:75"]  # the order must be deterministic
 
+    # this needs to be always the same order in tu path, no matter the run
+    coms = [
+        "COM:74109",
+        "COM:74291",
+        "COM:74285",
+        "COM:01407",
+        "COM:74269",
+        "COM:74235",
+        "COM:74195",
+        "COM:74184",
+        "COM:74178",
+        "COM:74168",
+        "COM:74131",
+        "COM:74130",
+        "COM:74107",
+        "COM:74100",
+        "COM:01118",
+        "COM:74086",
+        "COM:74078",
+        "COM:74077",
+        "COM:74068",
+        "COM:74075",
+        "COM:74071",
+        "COM:74066",
+        "COM:74065",
+        "COM:74055",
+        "COM:74029",
+        "COM:01010",
+    ]
+
+    tu_paths = {tuple(Territory.from_tu_ids(coms).tu_path) for _ in range(256)}
+    assert len(tu_paths) == 1
+
     assert Territory().tu_path == []
 
 

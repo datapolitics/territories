@@ -37,7 +37,7 @@ with open(str(data_file), "r") as f:
 
 logger = logging.getLogger(__name__)
 
-CHECKSUM = "current version is A2FH96"
+CHECKSUM = "current version is 2026-05-19"
 
 
 class OrphanNode(NamedTuple):
