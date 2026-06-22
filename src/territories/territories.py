@@ -548,7 +548,7 @@ class Territory:
         )
         if len(tus) == 1:
             return tus.pop()
-        common_ancestors: set[int] = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) for e in tus))
+        common_ancestors: set[int] = set.intersection(*(rx.ancestors(cls.tree, e.tree_id) | {e.tree_id} for e in tus))
         match len(common_ancestors):
             case 0:
                 # not possible, this is a tree
@@ -567,6 +567,37 @@ class Territory:
             if successor is None:
                 return cls.tree.get_node_data(ancestor)
             ancestor = successor
+
+    @classmethod
+    def unit_distance(cls, a: TerritorialUnit, b: TerritorialUnit) -> int:
+        """Return the tree distance between two territorial units.
+
+        The distance is the number of parent/child edges between the two units
+        in the territorial tree. It is computed from their lowest common
+        ancestor, so a unit has distance 0 from itself and distance 1 from its
+        direct parent or child.
+        """
+        if a.tree_id is None or b.tree_id is None:
+            raise NotOnTreeError("Cannot compute distance for territorial units not attached to the tree")
+
+        lca = cls.LCA(a, b)
+        if lca.tree_id is None:
+            raise NotOnTreeError("Cannot compute distance with an LCA not attached to the tree")
+
+        distance = 0
+        for node in (a.tree_id, b.tree_id):
+            while node != lca.tree_id:
+                predecessors = cls.tree.predecessor_indices(node)
+                if not predecessors:
+                    raise RuntimeError("Territory tree invariant violated: LCA is not an ancestor of the node")
+                node = predecessors[0]
+                distance += 1
+        return distance
+
+    @staticmethod
+    def _directed_hausdorff_distance(source: Iterable[TerritorialUnit], target: Iterable[TerritorialUnit]) -> int:
+        target_units = tuple(target)
+        return max(min(Territory.unit_distance(a, b) for b in target_units) for a in source)
 
     @classmethod
     def get_parent(cls, other: TerritorialUnit) -> TerritorialUnit | None:
@@ -849,6 +880,26 @@ class Territory:
 
     def is_disjoint(self, other: Territory) -> bool:
         raise NotImplementedError
+
+    def distance(self, other: Territory | TerritorialUnit) -> int:
+        """Return the Hausdorff distance between this territory and another one.
+
+        The distance is computed from the minimized territorial units of each
+        territory, using ``unit_distance`` as the underlying tree metric.
+        """
+        if not self:
+            raise EmptyTerritoryError("An empty territory has no distance")
+        if isinstance(other, TerritorialUnit):
+            if other.tree_id is None:
+                raise NotOnTreeError("Cannot compute distance for territorial units not attached to the tree")
+            other = Territory(other)
+        if not other:
+            raise EmptyTerritoryError("An empty territory has no distance")
+
+        return max(
+            self._directed_hausdorff_distance(self.territorial_units, other.territorial_units),
+            self._directed_hausdorff_distance(other.territorial_units, self.territorial_units),
+        )
 
     def __or__(self, other: Territory | TerritorialUnit) -> Territory:
         if not self.territorial_units:
