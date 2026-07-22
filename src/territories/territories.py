@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-import fcntl
 import os
 import json
+import time
+import errno
 import pickle
 import logging
-import time
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 import json_fix  # noqa: F401
 
@@ -38,6 +43,44 @@ with open(str(data_file), "r") as f:
 logger = logging.getLogger(__name__)
 
 CHECKSUM = "current version is 2026-05-19"
+_LOCK_RETRY_INTERVAL = 0.1
+_LOCK_CONTENTION_ERRORS = {errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLK", errno.EACCES)}
+
+
+def _acquire_file_lock(lock_fd: Any, *, blocking: bool) -> bool:
+    """Acquire an exclusive cross-process lock on the first byte of a file."""
+    if os.name == "nt":
+        while True:
+            lock_fd.seek(0)
+            try:
+                msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+                return True
+            except OSError as error:
+                if error.errno not in _LOCK_CONTENTION_ERRORS:
+                    raise
+                if not blocking:
+                    return False
+                time.sleep(_LOCK_RETRY_INTERVAL)
+
+    operation = fcntl.LOCK_EX
+    if not blocking:
+        operation |= fcntl.LOCK_NB
+    try:
+        fcntl.flock(lock_fd, operation)
+        return True
+    except OSError as error:
+        if not blocking and error.errno in _LOCK_CONTENTION_ERRORS:
+            return False
+        raise
+
+
+def _release_file_lock(lock_fd: Any) -> None:
+    """Release a lock acquired by :func:`_acquire_file_lock`."""
+    if os.name == "nt":
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 
 class OrphanNode(NamedTuple):
@@ -314,16 +357,19 @@ class Territory:
         lock_path = cache_path.with_suffix(".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(lock_path, "w") as lock_fd:
-            is_builder = False
+        with open(lock_path, "a+b") as lock_fd:
+            # Use a concrete byte because Windows locks byte ranges rather than whole files.
+            lock_fd.seek(0, os.SEEK_END)
+            if lock_fd.tell() == 0:
+                lock_fd.write(b"\0")
+                lock_fd.flush()
 
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            is_builder = _acquire_file_lock(lock_fd, blocking=False)
+            if is_builder:
                 logger.info("Acquired tree build lock.")
-                is_builder = True
-            except BlockingIOError:
+            else:
                 logger.info("Another process is building the tree. Waiting...")
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                _acquire_file_lock(lock_fd, blocking=True)
                 logger.info("Tree build finished by another process.")
 
             try:
@@ -385,7 +431,7 @@ class Territory:
 
             finally:
                 logger.info("Releasing tree build lock.")
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                _release_file_lock(lock_fd)
 
             # --- ensure all workers load the same tree
             cls.load_tree(cache_path)

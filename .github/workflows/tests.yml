@@ -8,8 +8,14 @@ on:
 
 jobs:
   test:
-    name: python
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    name: python (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - blacksmith-2vcpu-ubuntu-2404-arm
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     env:
       UV_INDEX_DATAPOLITICS_USERNAME: datapolitics
       UV_INDEX_DATAPOLITICS_PASSWORD: ${{ secrets.PYPI_PSWD }}

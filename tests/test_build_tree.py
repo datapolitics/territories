@@ -1,8 +1,9 @@
 from territories import Territory
 from territories.database import NodeTuple
+from territories.territories import _acquire_file_lock, _release_file_lock
 
 
-def test_build_tree():
+def test_build_tree(tmp_path):
     nodes = [
         NodeTuple(id="CNTRY:France", label="France", level="CNTRY", parent_id=None),
         NodeTuple(id="REG:Sud", label="Sud", level="REG", parent_id="CNTRY:France"),
@@ -18,4 +19,20 @@ def test_build_tree():
         NodeTuple(id="COM:Marseille", label="Marseille", level="COM", parent_id="REG:Sud"),
     ]
 
-    Territory.build_tree(nodes, save_tree=True, filepath='/tmp/foo.pickle')
+    cache_path = tmp_path / "foo.pickle"
+    Territory.build_tree(nodes, save_tree=True, filepath=str(cache_path))
+
+    assert cache_path.is_file()
+
+
+def test_file_lock_is_exclusive(tmp_path):
+    lock_path = tmp_path / "tree.lock"
+    lock_path.write_bytes(b"\0")
+
+    with open(lock_path, "r+b") as first_fd, open(lock_path, "r+b") as second_fd:
+        assert _acquire_file_lock(first_fd, blocking=False)
+        assert not _acquire_file_lock(second_fd, blocking=False)
+
+        _release_file_lock(first_fd)
+        assert _acquire_file_lock(second_fd, blocking=False)
+        _release_file_lock(second_fd)
