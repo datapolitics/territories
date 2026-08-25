@@ -1,36 +1,29 @@
 from __future__ import annotations
 
-import os
 import json
-import time
-import errno
-import pickle
 import logging
-
-if os.name == "nt":
-    import msvcrt
-else:
-    import fcntl
+import os
+import pickle
+import time
+from collections.abc import AsyncIterable, Iterable
+from functools import lru_cache, reduce
+from importlib.resources import files
+from itertools import chain, product
+from json import JSONDecodeError
+from pathlib import Path
+from typing import Any, NamedTuple, override
 
 import json_fix  # noqa: F401
-
 import rustworkx as rx
-
-from pathlib import Path
-from json import JSONDecodeError
-from itertools import chain, product
-from importlib.resources import files
-from functools import lru_cache, reduce
-from typing import Any, NamedTuple, override
-from collections.abc import Iterable, AsyncIterable
+from filelock import FileLock, Timeout
 from more_itertools import batched, collapse, flatten
 
-from territories.partitions import TerritorialUnit, Partition, Node
-from territories.exceptions import MissingTreeException, MissingTreeCache, NotOnTreeError, EmptyTerritoryError, InvalidTreeCache
+from territories.exceptions import EmptyTerritoryError, InvalidTreeCache, MissingTreeCache, MissingTreeException, NotOnTreeError
+from territories.partitions import Node, Partition, TerritorialUnit
 
 try:
+    from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
     from pydantic_core import CoreSchema, core_schema
-    from pydantic import GetJsonSchemaHandler, GetCoreSchemaHandler
 
     HAS_PYDANTIC = True
 except ImportError:
@@ -43,44 +36,6 @@ with open(str(data_file), "r") as f:
 logger = logging.getLogger(__name__)
 
 CHECKSUM = "current version is 2026-05-19"
-_LOCK_RETRY_INTERVAL = 0.1
-_LOCK_CONTENTION_ERRORS = {errno.EACCES, errno.EAGAIN, getattr(errno, "EDEADLK", errno.EACCES)}
-
-
-def _acquire_file_lock(lock_fd: Any, *, blocking: bool) -> bool:
-    """Acquire an exclusive cross-process lock on the first byte of a file."""
-    if os.name == "nt":
-        while True:
-            lock_fd.seek(0)
-            try:
-                msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
-                return True
-            except OSError as error:
-                if error.errno not in _LOCK_CONTENTION_ERRORS:
-                    raise
-                if not blocking:
-                    return False
-                time.sleep(_LOCK_RETRY_INTERVAL)
-
-    operation = fcntl.LOCK_EX
-    if not blocking:
-        operation |= fcntl.LOCK_NB
-    try:
-        fcntl.flock(lock_fd, operation)
-        return True
-    except OSError as error:
-        if not blocking and error.errno in _LOCK_CONTENTION_ERRORS:
-            return False
-        raise
-
-
-def _release_file_lock(lock_fd: Any) -> None:
-    """Release a lock acquired by :func:`_acquire_file_lock`."""
-    if os.name == "nt":
-        lock_fd.seek(0)
-        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 
 class OrphanNode(NamedTuple):
@@ -357,84 +312,80 @@ class Territory:
         lock_path = cache_path.with_suffix(".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(lock_path, "a+b") as lock_fd:
-            # Use a concrete byte because Windows locks byte ranges rather than whole files.
-            lock_fd.seek(0, os.SEEK_END)
-            if lock_fd.tell() == 0:
-                lock_fd.write(b"\0")
-                lock_fd.flush()
+        lock = FileLock(lock_path)
+        try:
+            lock.acquire(blocking=False)
+            is_builder = True
+            logger.info("Acquired tree build lock.")
+        except Timeout:
+            is_builder = False
+            logger.info("Another process is building the tree. Waiting...")
+            lock.acquire()
+            logger.info("Tree build finished by another process.")
 
-            is_builder = _acquire_file_lock(lock_fd, blocking=False)
+        try:
             if is_builder:
-                logger.info("Acquired tree build lock.")
-            else:
-                logger.info("Another process is building the tree. Waiting...")
-                _acquire_file_lock(lock_fd, blocking=True)
-                logger.info("Tree build finished by another process.")
+                logger.info("Building territorial tree.")
 
-            try:
-                if is_builder:
-                    logger.info("Building territorial tree.")
+                cls.reset()
 
-                    cls.reset()
+                tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
+                mapper: dict[str, int] = {}
+                orphans: list[OrphanNode] = []
+                batch_size = 1024
+                for batch in batched(data_stream, batch_size):
+                    entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
 
-                    tree: rx.PyDiGraph[TerritorialUnit, None] = rx.PyDiGraph()
-                    mapper: dict[str, int] = {}
-                    orphans: list[OrphanNode] = []
-                    batch_size = 1024
-                    for batch in batched(data_stream, batch_size):
-                        entities_indices = tree.add_nodes_from(tuple(cls.to_part(node) for node in batch))
+                    for node, tree_idx in zip(batch, entities_indices):
+                        if not tree.get_node_data(tree_idx).atomic:
+                            mapper[node.id] = tree_idx
+                        object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
 
-                        for node, tree_idx in zip(batch, entities_indices):
-                            if not tree.get_node_data(tree_idx).atomic:
-                                mapper[node.id] = tree_idx
-                            object.__setattr__(tree.get_node_data(tree_idx), "tree_id", tree_idx)
+                    edges: list[tuple[int, int, None]] = []
+                    for node, tree_idx in zip(batch, entities_indices):
+                        if node.parent_id in mapper:
+                            edges.append((mapper[node.parent_id], tree_idx, None))
+                        else:
+                            if node.parent_id:  # do not append root node to orphans
+                                # object.__setattr__(node, 'tree_id', tree_idx)
+                                # orphans.append(node)
 
-                        edges: list[tuple[int, int, None]] = []
-                        for node, tree_idx in zip(batch, entities_indices):
-                            if node.parent_id in mapper:
-                                edges.append((mapper[node.parent_id], tree_idx, None))
-                            else:
-                                if node.parent_id:  # do not append root node to orphans
-                                    # object.__setattr__(node, 'tree_id', tree_idx)
-                                    # orphans.append(node)
+                                # this is a lot more expensive than updating the node object,
+                                # but we have no guarantee that it is mutable (can be a tuple)
+                                orphan = OrphanNode(
+                                    id=node.id,
+                                    parent_id=node.parent_id,
+                                    label=node.label,
+                                    level=node.level,
+                                    tree_id=tree_idx,
+                                )
+                                orphans.append(orphan)
+                    _ = tree.add_edges_from(edges)
 
-                                    # this is a lot more expensive than updating the node object,
-                                    # but we have no guarantee that it is mutable (can be a tuple)
-                                    orphan = OrphanNode(
-                                        id=node.id,
-                                        parent_id=node.parent_id,
-                                        label=node.label,
-                                        level=node.level,
-                                        tree_id=tree_idx,
-                                    )
-                                    orphans.append(orphan)
-                        _ = tree.add_edges_from(edges)
+                new_edges = tuple(
+                    (mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper
+                )
+                _ = tree.add_edges_from(new_edges)
 
-                    new_edges = tuple(
-                        (mapper[orphan.parent_id], orphan.tree_id, None) for orphan in orphans if orphan.parent_id in mapper
+                last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
+                if last_orphans:
+                    logger.warning(
+                        f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
                     )
-                    _ = tree.add_edges_from(new_edges)
 
-                    last_orphans = tuple(orphan for orphan in orphans if orphan.parent_id not in mapper)
-                    if last_orphans:
-                        logger.warning(
-                            f"{len(last_orphans)} elements were not added to the tree because they have no parents : {last_orphans}"
-                        )
+                cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
+                cls.tree = tree
+                cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
 
-                    cls.name_to_id = {tree.get_node_data(i).tu_id: i for i in tree.node_indices()}
-                    cls.tree = tree
-                    cls.root_index = next(i for i in tree.node_indices() if tree.in_degree(i) == 0)
+                if save_tree:
+                    _ = cls.save_tree(filepath=filepath)
 
-                    if save_tree:
-                        _ = cls.save_tree(filepath=filepath)
+        finally:
+            logger.info("Releasing tree build lock.")
+            lock.release()
 
-            finally:
-                logger.info("Releasing tree build lock.")
-                _release_file_lock(lock_fd)
-
-            # --- ensure all workers load the same tree
-            cls.load_tree(cache_path)
+        # --- ensure all workers load the same tree
+        cls.load_tree(cache_path)
 
     @classmethod
     def assign_tree(cls, tree: rx.PyDiGraph[TerritorialUnit, None]):
